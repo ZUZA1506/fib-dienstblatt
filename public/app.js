@@ -88,9 +88,10 @@ let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1
 let selectedCalendarDate = isoDateLocal(new Date());
 let trainingTimerInterval = null;
 const dutyOptions = [
-  { title: "Innendienst", description: "Büro & Verwaltung" },
-  { title: "Außendienst", description: "Streife & Einsatz" },
-  { title: "Undercover Dienst", description: "Zivil Einheit" }
+  { title: "Innendienst", description: "Büro & Verwaltung", icon: "Abteilungen" },
+  { title: "Außendienst", description: "Streife & Einsatz", icon: "Kalender" },
+  { title: "Undercover Dienst", description: "Zivil Einheit", icon: "Mitglieder" },
+  { title: "Admin Dienst", description: "Teamler / Administration", icon: "IT", teamlerOnly: true }
 ];
 
 const pageDescriptions = {
@@ -301,6 +302,7 @@ function roleClass(role) {
 function roleBadges(user) {
   const baseRole = user?.baseRole || (["IT", "IT-Leitung"].includes(user?.role) ? "Direktion" : user?.role || "User");
   const roles = user?.role === "IT-Leitung" ? [baseRole, "IT", "IT-Leitung"] : user?.role === "IT" ? [baseRole, "IT"] : [baseRole];
+  if (user?.teamler) roles.push("Teamler");
   return roles.map((role) => `<span class="role-pill ${roleClass(role)}">${escapeHtml(role)}</span>`).join("");
 }
 
@@ -625,6 +627,9 @@ function renderPage() {
 function renderDienstblatt() {
   const agents = state.duty.length;
   const undercover = state.duty.filter((entry) => entry.status === "Undercover Dienst").length;
+  const outside = state.duty.filter((entry) => entry.status === "Außendienst").length;
+  const inside = state.duty.filter((entry) => entry.status === "Innendienst").length;
+  const adminDuty = state.duty.filter((entry) => entry.status === "Admin Dienst").length;
   const myDuty = state.duty.find((entry) => entry.userId === state.currentUser.id);
 
   content.innerHTML = `
@@ -641,9 +646,9 @@ function renderDienstblatt() {
 
     <section class="grid-4 dashboard-stats">
       <div class="stat-card"><span>Aktive Agents</span><i>${iconSvg("Einsatzzentrale")}</i><strong>${agents}</strong><small>Im Einsatz</small></div>
+      <div class="stat-card"><span>Außendienst</span><i>${iconSvg("Kalender")}</i><strong>${outside}</strong><small>Auf Streife</small></div>
       <div class="stat-card"><span>Undercover Dienst</span><i>${iconSvg("Mitglieder")}</i><strong>${undercover}</strong><small>Zivil Einheit</small></div>
-      <div class="stat-card"><span>Innendienst</span><i>${iconSvg("Abteilungen")}</i><strong>${state.duty.filter((entry) => entry.status === "Innendienst").length}</strong><small>Im Büro</small></div>
-      <div class="stat-card"><span>Außendienst</span><i>${iconSvg("Kalender")}</i><strong>${state.duty.filter((entry) => entry.status === "Außendienst").length}</strong><small>Auf Streife</small></div>
+      <div class="stat-card"><span>Innendienst ${adminDuty ? `<em class="admin-duty-count">(${adminDuty})</em>` : ""}</span><i>${iconSvg("Abteilungen")}</i><strong>${inside}</strong><small>Im Büro${adminDuty ? " · Admin Dienst" : ""}</small></div>
     </section>
 
     <section class="panel">
@@ -660,6 +665,7 @@ function renderDienstblatt() {
       <div class="panel-header">
         <h3><span class="section-icon">♙</span>Aktive Agents</h3>
         <div class="button-row">
+          ${myDuty ? `<button class="ghost-btn action-btn" id="switchDutyBtn"><span>${iconSvg("Einsatzzentrale")}</span> Umtragen</button>` : ""}
           <button class="blue-btn action-btn" id="startDutyBtn"><span>+</span> Eintragen</button>
           <button class="red-btn action-btn" id="stopDutyBtn"><span>${iconSvg("Profil")}</span> Austragen</button>
           ${canAccess("actions", "stopAllDuty", "Direktion") ? `<button class="orange-btn action-btn" id="stopAllDutyBtn"><span>${iconSvg("Mitglieder")}</span> Alle Austragen</button>` : ""}
@@ -672,6 +678,7 @@ function renderDienstblatt() {
   $("#defconBtn")?.addEventListener("click", openDefconModal);
   $("#addNoteBtn")?.addEventListener("click", () => openNoteModal());
   $("#startDutyBtn").addEventListener("click", openStartDutyModal);
+  $("#switchDutyBtn")?.addEventListener("click", openSwitchDutyModal);
   $("#stopDutyBtn").addEventListener("click", () => openStopDutyModal(myDuty));
   $("#stopAllDutyBtn")?.addEventListener("click", openStopAllDutyModal);
 }
@@ -743,6 +750,7 @@ function renderDutyTable() {
 
 function statusClass(status) {
   if (status === "Innendienst") return "status-inside";
+  if (status === "Admin Dienst") return "status-admin";
   if (status === "Außendienst") return "status-outside";
   if (status === "Undercover Dienst") return "status-undercover";
   return "";
@@ -1009,6 +1017,28 @@ async function deleteInformationItem(key, id) {
   } catch (error) {
     showNotify(error.message, "error");
   }
+}
+
+function openDeleteInformationConfirm(key, id, title = "Eintrag löschen?") {
+  openModal(`
+    <h3>${escapeHtml(title)}</h3>
+    <p class="muted">Dieser Eintrag wird dauerhaft entfernt.</p>
+    <p id="modalError" class="form-error"></p>
+    <div class="modal-actions">
+      <button class="ghost-btn" data-close>Abbrechen</button>
+      <button class="red-btn" id="confirmInformationDelete">Löschen</button>
+    </div>
+  `, (modal) => {
+    modal.querySelector("#confirmInformationDelete").addEventListener("click", async () => {
+      try {
+        await deleteInformationItem(key, id);
+        closeModal();
+        renderInformation();
+      } catch (error) {
+        $("#modalError").textContent = error.message;
+      }
+    });
+  });
 }
 
 function renderDirektion() {
@@ -1284,6 +1314,16 @@ function renderItRoleControls(user = null) {
   `;
 }
 
+function renderTeamlerControl(user = null) {
+  return `
+    <label class="it-toggle">
+      <input type="checkbox" name="teamler" ${user?.teamler ? "checked" : ""}>
+      <span class="it-toggle-ui"></span>
+      <span><b>Teamler</b><small>Darf Admin Dienst stempeln</small></span>
+    </label>
+  `;
+}
+
 function renderDirectionFluctuationPanel() {
   const rows = state.settings.fluctuation || [];
   return `
@@ -1554,7 +1594,11 @@ function renderDirectionUprankRulesPanel() {
               <small>Zielrang ${rule.targetRank}</small>
             </div>
             <label>Min. Tage auf Rang<input type="number" min="0" name="minDays_${rule.targetRank}" value="${Number(rule.minDays || 0)}"></label>
-            <label class="checkbox-line">Nur Sonderuprank<input type="checkbox" name="specialOnly_${rule.targetRank}" ${rule.specialOnly ? "checked" : ""}></label>
+            <label class="it-toggle compact-rule-toggle">
+              <input type="checkbox" name="specialOnly_${rule.targetRank}" ${rule.specialOnly ? "checked" : ""}>
+              <span class="it-toggle-ui"></span>
+              <span><b>Nur Sonderuprank</b><small>Reguläre Dauer/Ausbildung wird nicht automatisch vorgeschlagen.</small></span>
+            </label>
             <div class="rule-training-grid">
               ${trainings.map((training) => `
                 <label class="training-toggle">
@@ -5129,7 +5173,10 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
         <textarea class="paper-doc-page paper-doc-editor" id="paperDocEditor">${escapeHtml(readBody)}</textarea>
       </div>` : ""}
       <aside class="paper-doc-tools">
-        <input id="docSearchInput" placeholder="Im Dokument suchen">
+        <div class="doc-search-control">
+          <input id="docSearchInput" placeholder="Im Dokument suchen">
+          <span id="docSearchCount">0 Treffer</span>
+        </div>
         ${canEdit ? `<button class="mode-toggle-btn" id="toggleDocMode" type="button">Bearbeitermodus</button><button class="blue-btn hidden" id="saveDocFromEditor" type="button">Speichern</button>` : ""}
         <button class="ghost-btn" id="toggleDocChanges" type="button">Changelog (${changes.length})</button>
       </aside>
@@ -5213,13 +5260,12 @@ function renderInformation() {
   const factions = state.settings.informationFactions || [];
   content.innerHTML = `
     <section class="department-info-view information-admin-view modern-info-view">
-      <div class="info-box full information-card internal-doc-card"><div class="department-modal-heading"><h4>Vorschriften</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="addInformationDoc">${iconSvg("Plus")} Dokument</button>` : ""}</div><div class="internal-doc-grid">${docs.map((doc) => `<button class="internal-doc-tile" data-doc-id="${escapeHtml(doc.id)}"><strong>${escapeHtml(doc.title)}</strong><small>Zuletzt geändert: ${formatDateTime(doc.updatedAt)}</small></button>`).join("")}</div></div>
+      <div class="info-box full information-card internal-doc-card"><div class="department-modal-heading"><h4>Vorschriften</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn add-doc-button" id="addInformationDoc">${iconSvg("Plus")} Neue Vorschrift hinzufügen</button>` : ""}</div><div class="internal-doc-grid">${docs.map((doc) => `<button class="internal-doc-tile" data-doc-id="${escapeHtml(doc.id)}"><strong>${escapeHtml(doc.title)}</strong><small>Zuletzt geändert: ${formatDateTime(doc.updatedAt)}</small></button>`).join("")}</div></div>
       <div class="info-box full information-card redirects-card"><div class="department-modal-heading"><h4>Link Weiterleitungen</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="addInformationLink">${iconSvg("Plus")} Hinzufügen</button>` : ""}</div><div class="link-card-grid">${links.map((link) => `<article class="small-link-card"><strong>${escapeHtml(link.title)}</strong><span class="link-label">Link:</span><a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.url)}</a>${canAccess("actions", "manageInformation", "Direktion") ? `<span class="button-row"><button class="blue-btn compact-action edit-info-link" data-id="${link.id}" title="Bearbeiten">${actionIcon("edit")} Bearbeiten</button><button class="mini-icon danger delete-info-link" data-id="${link.id}" title="Löschen">${actionIcon("delete")}</button></span>` : ""}</article>`).join("") || `<p class="muted">Noch keine Weiterleitungen.</p>`}</div></div>
       <div class="info-box full information-card"><div class="department-modal-heading"><h4>Rechte Definition</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="editInformationRights">${actionIcon("edit")} Bearbeiten</button>` : ""}</div><div class="rich-text-view">${formatDepartmentText(state.settings.informationRightsText)}</div></div>
       <div class="info-box full information-card"><div class="department-modal-heading"><h4>Sondergenehmigungen</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="addInformationPermit">${iconSvg("Plus")} Hinzufügen</button>` : ""}</div><div class="table-wrap compact-table"><table><thead><tr><th>Vor- und Nachname</th><th>Beschreibung</th><th>Gültig Bis</th><th>Aktionen</th></tr></thead><tbody>${permits.map((permit) => `<tr><td>${escapeHtml(permit.name)}</td><td>${escapeHtml(permit.description)}</td><td>${formatDate(permit.validUntil)}</td><td>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="mini-icon edit-info-permit" data-id="${permit.id}">${actionIcon("edit")}</button><button class="mini-icon danger delete-info-permit" data-id="${permit.id}">${actionIcon("delete")}</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">Keine Sondergenehmigungen.</td></tr>`}</tbody></table></div></div>
       <div class="info-box full information-card"><div class="department-modal-heading"><h4>Fraktionen</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="addInformationFaction">${iconSvg("Plus")} Hinzufügen</button>` : ""}</div><div class="table-wrap compact-table"><table><thead><tr><th>Organisation</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>${factions.map((faction) => `<tr><td>${escapeHtml(faction.organization)}</td><td><span class="status-label">${renderStatusDot(faction.status)}</span></td><td>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="mini-icon edit-info-faction" data-id="${faction.id}">${actionIcon("edit")}</button><button class="mini-icon danger delete-info-faction" data-id="${faction.id}">${actionIcon("delete")}</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">Keine Fraktionen.</td></tr>`}</tbody></table></div></div>
     </section>
-    <section class="panel"><div class="panel-header"><h3><span class="section-icon">${iconSvg("Informationen")}</span>Informationen</h3>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="editInformation">${actionIcon("edit")} Bearbeiten</button>` : ""}</div><div class="info-box"><strong>Bewerbungsstatus</strong><p><span class="application-pill ${state.settings.applicationStatus === "Offen" ? "open" : "closed"}">${escapeHtml(state.settings.applicationStatus)}</span></p></div><div class="info-box"><strong>Beschreibung</strong><p>${escapeHtml(state.settings.informationText)}</p></div></section>
   `;
   $("#editInformation")?.addEventListener("click", openInformationEditModal);
   $("#editInformationRights")?.addEventListener("click", openInformationRightsModal);
@@ -5228,7 +5274,7 @@ function renderInformation() {
   $("#addInformationPermit")?.addEventListener("click", () => openInformationPermitModal());
   $("#addInformationFaction")?.addEventListener("click", () => openInformationFactionModal());
   document.querySelectorAll(".edit-info-link").forEach((button) => button.addEventListener("click", () => openInformationLinkModal(links.find((item) => item.id === button.dataset.id))));
-  document.querySelectorAll(".delete-info-link").forEach((button) => button.addEventListener("click", () => deleteInformationItem("informationLinks", button.dataset.id)));
+  document.querySelectorAll(".delete-info-link").forEach((button) => button.addEventListener("click", () => openDeleteInformationConfirm("informationLinks", button.dataset.id, "Weiterleitung löschen?")));
   document.querySelectorAll(".edit-info-permit").forEach((button) => button.addEventListener("click", () => openInformationPermitModal(permits.find((item) => item.id === button.dataset.id))));
   document.querySelectorAll(".delete-info-permit").forEach((button) => button.addEventListener("click", () => deleteInformationItem("informationPermits", button.dataset.id)));
   document.querySelectorAll(".edit-info-faction").forEach((button) => button.addEventListener("click", () => openInformationFactionModal(factions.find((item) => item.id === button.dataset.id))));
@@ -5703,10 +5749,33 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
       x.replaceWith(clone);
       clone.addEventListener("click", closeModal);
     }
+    let searchIndex = -1;
+    const updateDocSearch = (term, move = 0) => {
+      const page = modal.querySelector("#paperDocPage");
+      const counter = modal.querySelector("#docSearchCount");
+      if (!page) return;
+      page.innerHTML = formatInformationDocText(readBody, term);
+      const marks = [...page.querySelectorAll(".doc-search-mark")];
+      if (!marks.length) {
+        searchIndex = -1;
+        if (counter) counter.textContent = term ? "0 Treffer" : "0 Treffer";
+        return;
+      }
+      searchIndex = move ? (searchIndex + move + marks.length) % marks.length : 0;
+      marks.forEach((mark) => mark.classList.remove("active-search-mark"));
+      marks[searchIndex].classList.add("active-search-mark");
+      marks[searchIndex].scrollIntoView({ block: "center", behavior: "smooth" });
+      if (counter) counter.textContent = `${searchIndex + 1} / ${marks.length}`;
+    };
     modal.querySelector("#docSearchInput")?.addEventListener("input", (event) => {
       const term = event.target.value.trim();
-      const page = modal.querySelector("#paperDocPage");
-      if (page) page.innerHTML = formatInformationDocText(readBody, term);
+      updateDocSearch(term, 0);
+    });
+    modal.querySelector("#docSearchInput")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const term = event.target.value.trim();
+      if (term) updateDocSearch(term, event.shiftKey ? -1 : 1);
     });
     modal.querySelectorAll("[data-wysiwyg]").forEach((button) => {
       button.addEventListener("mousedown", (event) => event.preventDefault());
@@ -5990,10 +6059,11 @@ function renderProfileTrainingPanel(user) {
           <div class="profile-training-list">
             ${group.map((training) => {
               const done = Boolean(user.trainings?.[training]);
+              const meta = user.trainingMeta?.[training] || {};
               return `
                 <div class="profile-training-row ${done ? "done" : "open"}">
                   <span>${escapeHtml(training)}</span>
-                  <b>${done ? "Abgeschlossen" : "Offen"}</b>
+                  <b>${done ? "Abgeschlossen" : "Offen"}${done ? `<small>${formatDateTime(meta.completedAt)} · ${escapeHtml(meta.completedBy || "Unbekannt")}</small>` : ""}</b>
                 </div>
               `;
             }).join("")}
@@ -6011,7 +6081,9 @@ function renderProfile() {
   const trainingDone = trainings.filter((training) => Boolean(user.trainings?.[training])).length;
   const trainingTotal = trainings.length || 1;
   const trainingPercent = Math.round((trainingDone / trainingTotal) * 100);
-  const sumDuty = (status = null) => myHistory.filter((entry) => !status || entry.status === status).reduce((sum, entry) => sum + durationMs(entry), 0);
+  const sumDuty = (status = null) => myHistory
+    .filter((entry) => !status || entry.status === status || (status === "Innendienst" && entry.status === "Admin Dienst"))
+    .reduce((sum, entry) => sum + durationMs(entry), 0);
   content.innerHTML = `
     <section class="panel profile-hero">
       ${avatarMarkup(user, "xl")}
@@ -6266,7 +6338,7 @@ function renderEvidenceLinks(item) {
     const isUrl = /^https?:\/\//i.test(link);
     const isPrnt = /^https?:\/\/(?:www\.)?prnt\.sc\//i.test(link);
     return isUrl
-      ? `<div class="evidence-preview-card ${isPrnt ? "prnt-preview" : ""}"><button class="evidence-thumb-link evidence-preview-open" type="button" data-link="${escapeHtml(link)}">${isPrnt ? `<span>PRNT.SC</span>` : `<img src="${escapeHtml(link)}" alt="Beweis ${index + 1}" loading="lazy" onerror="this.closest('.evidence-preview-card').classList.add('no-preview')">`}</button><a class="evidence-text-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(link)}</a></div>`
+      ? `<div class="evidence-preview-card ${isPrnt ? "prnt-preview" : ""}"><button class="evidence-thumb-link evidence-preview-open" type="button" data-link="${escapeHtml(link)}"><img src="${isPrnt ? `/api/evidence-preview?url=${encodeURIComponent(link)}` : escapeHtml(link)}" alt="Beweis ${index + 1}" loading="lazy" onerror="this.closest('.evidence-preview-card').classList.add('no-preview')"><span class="prnt-fallback">PRNT.SC</span></button><a class="evidence-text-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(link)}</a></div>`
       : `<span>${escapeHtml(link)}</span>`;
   }).join("")}</div>`;
 }
@@ -6274,6 +6346,7 @@ function renderEvidenceLinks(item) {
 function renderSeizures() {
   const search = localStorage.getItem("fib_seizure_search") || "";
   const statRange = localStorage.getItem("fib_seizure_stat_range") || "Gesamt";
+  const visibleLimit = Math.max(15, Number(localStorage.getItem("fib_seizure_visible_limit") || 25));
   const items = seizureItems();
   const statStart = rangeStart(statRange);
   const statItems = statStart ? items.filter((item) => new Date(item.createdAt).getTime() >= statStart.getTime()) : items;
@@ -6294,6 +6367,8 @@ function renderSeizures() {
   const canDelete = hasRole("Direktion");
   const canEditAll = hasRole("Direktion");
   const ranges = ["Heute", "Woche", "Monat", "Gesamt"];
+  const visibleRows = filtered.slice(0, visibleLimit);
+  const hiddenRows = Math.max(0, filtered.length - visibleRows.length);
 
   content.innerHTML = `
     <section class="seizure-page">
@@ -6336,7 +6411,7 @@ function renderSeizures() {
               </tr>
             </thead>
             <tbody>
-              ${filtered.map((item) => `
+              ${visibleRows.map((item) => `
                 <tr>
                   <td><strong>${escapeHtml(item.suspect || "-")}</strong></td>
                   <td>${escapeHtml(item.location || "-")}</td>
@@ -6348,12 +6423,13 @@ function renderSeizures() {
                   <td><span class="seizure-pill ${item.murder ? "yes" : "no"}">${item.murder ? "Ja" : "Nein"}</span></td>
                   <td>${formatDateTime(item.createdAt)}</td>
                   <td>${escapeHtml(item.officerName || "-")}</td>
-                  <td>${canEditAll || item.officerId === state.currentUser.id ? `<button class="mini-icon seizure-actions" data-id="${escapeHtml(item.id)}" title="Aktionen">${iconSvg("Settings")}</button>` : `<span class="muted">-</span>`}</td>
+                  <td>${canEditAll || item.officerId === state.currentUser.id ? `<button class="mini-icon seizure-actions gear-action" data-id="${escapeHtml(item.id)}" title="Aktionen">${iconSvg("Settings")}</button>` : `<span class="muted">-</span>`}</td>
                 </tr>
               `).join("") || `<tr><td colspan="11" class="empty-table">Keine Beschlagnahmungen gefunden.</td></tr>`}
             </tbody>
           </table>
         </div>
+        ${hiddenRows ? `<div class="seizure-more-row"><button class="ghost-btn" id="showMoreSeizures">${iconSvg("ChevronDown")} ${hiddenRows} weitere anzeigen</button></div>` : ""}
       </section>
     </section>
   `;
@@ -6365,6 +6441,10 @@ function renderSeizures() {
   });
   document.querySelectorAll(".seizure-actions").forEach((button) => button.addEventListener("click", () => openSeizureActionsModal(button.dataset.id)));
   document.querySelectorAll(".evidence-preview-open").forEach((button) => button.addEventListener("click", () => openEvidencePreview(button.dataset.link)));
+  $("#showMoreSeizures")?.addEventListener("click", () => {
+    localStorage.setItem("fib_seizure_visible_limit", String(visibleLimit + 25));
+    renderSeizures();
+  });
   $("#runSeizureSearch")?.addEventListener("click", () => {
     localStorage.setItem("fib_seizure_search", $("#seizureSearch").value);
     renderSeizures();
@@ -6381,12 +6461,12 @@ function renderSeizures() {
 
 function openEvidencePreview(link) {
   const isPrnt = /^https?:\/\/(?:www\.)?prnt\.sc\//i.test(link || "");
+  const preview = isPrnt ? `/api/evidence-preview?url=${encodeURIComponent(link)}` : link;
   openModal(`
     <h3>Beweisvorschau</h3>
     <div class="evidence-popup-preview">
-      ${isPrnt
-        ? `<iframe src="${escapeHtml(link)}" title="Beweisvorschau"></iframe>`
-        : `<img src="${escapeHtml(link)}" alt="Beweisvorschau"><p class="muted evidence-preview-fallback">Falls das Bild nicht lädt, öffne den Link separat.</p>`}
+      <img src="${escapeHtml(preview)}" alt="Beweisvorschau">
+      <p class="muted evidence-preview-fallback">Falls die Vorschau nicht lädt, öffne den Link separat.</p>
     </div>
     <a class="blue-btn evidence-popup-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Link öffnen</a>
   `, (modal) => modal.classList.add("evidence-preview-modal"));
@@ -6466,13 +6546,17 @@ function openSeizureModal(item = null) {
           <option ${item?.sourceType === "Dealer" ? "selected" : ""}>Dealer</option>
         </select>
       </label>
-      <label>Agent
+      <label>Zeuge / Agent
         <select id="seizureWitness">
           <option value="" ${item?.witness ? "" : "selected"}>Agent auswählen...</option>
           ${witnessOptions}
         </select>
       </label>
-      <label class="checkbox-line seizure-checkbox"><input id="seizureMurder" type="checkbox" ${item?.murder ? "checked" : ""}> Mord/Totschlag</label>
+      <label class="it-toggle seizure-murder-toggle">
+        <input id="seizureMurder" type="checkbox" ${item?.murder ? "checked" : ""}>
+        <span>Mord/Totschlag</span>
+        <span class="it-toggle-ui"></span>
+      </label>
     </div>
     <p id="modalError" class="form-error"></p>
     <div class="modal-actions"><button class="blue-btn full-action" id="saveSeizure">${isEdit ? "Beschlagnahmung speichern" : "Beschlagnahmung eintragen"}</button></div>
@@ -6819,13 +6903,15 @@ function openStartDutyModal() {
   let selected = "";
   openModal(`
     <h3>Dienst eintragen</h3>
-    <div class="choice-grid">
-      ${dutyOptions.map((option) => `
-        <button class="choice-card" data-status="${escapeHtml(option.title)}">
-          <strong>${escapeHtml(option.title)}</strong>
-          <span>${escapeHtml(option.description)}</span>
+    <div class="choice-grid duty-choice-grid">
+      ${dutyOptions.map((option) => {
+        const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
+        return `
+        <button class="choice-card duty-choice-card" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}>
+          <i>${iconSvg(option.icon)}</i>
+          <span><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler" : option.description)}</small></span>
         </button>
-      `).join("")}
+      `;}).join("")}
     </div>
     <p id="modalError" class="form-error"></p>
     <div class="modal-actions">
@@ -6844,6 +6930,41 @@ function openStartDutyModal() {
     modal.querySelector("#confirmDuty").addEventListener("click", async () => {
       try {
         await api("/api/duty/start", { method: "POST", body: JSON.stringify({ status: selected }) });
+        closeModal();
+        await bootstrap();
+      } catch (error) {
+        $("#modalError").textContent = error.message;
+      }
+    });
+  });
+}
+
+function openSwitchDutyModal() {
+  let selected = "";
+  const current = state.duty.find((entry) => entry.userId === state.currentUser.id)?.status || "";
+  openModal(`
+    <h3>Dienst umtragen</h3>
+    <p class="muted">Aktuell: ${escapeHtml(current)}</p>
+    <div class="choice-grid duty-choice-grid">
+      ${dutyOptions.filter((option) => option.title !== current).map((option) => {
+        const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
+        return `<button class="choice-card duty-choice-card" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}><i>${iconSvg(option.icon)}</i><span><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler" : option.description)}</small></span></button>`;
+      }).join("")}
+    </div>
+    <p id="modalError" class="form-error"></p>
+    <div class="modal-actions">
+      <button class="ghost-btn" data-close>Abbrechen</button>
+      <button class="blue-btn" id="confirmSwitchDuty" disabled>Umtragen</button>
+    </div>
+  `, (modal) => {
+    modal.querySelectorAll(".choice-card").forEach((button) => button.addEventListener("click", () => {
+      selected = button.dataset.status;
+      modal.querySelectorAll(".choice-card").forEach((item) => item.classList.toggle("active", item === button));
+      $("#confirmSwitchDuty").disabled = false;
+    }));
+    modal.querySelector("#confirmSwitchDuty").addEventListener("click", async () => {
+      try {
+        await api("/api/duty/switch", { method: "POST", body: JSON.stringify({ status: selected }) });
         closeModal();
         await bootstrap();
       } catch (error) {
@@ -6915,6 +7036,7 @@ function openUserModal(user) {
       <label>Nachname / Doppelname<input name="lastName" value="${escapeHtml(user?.lastName || "")}" required></label>
       <label>Telefonnummer<input name="phone" value="${escapeHtml(user?.phone || "")}" required></label>
       <label>DN<input name="dn" id="userDnInput" inputmode="numeric" pattern="[0-9]+" value="${escapeHtml(initialDn)}" required></label>
+      <label>Einstellungsdatum<input name="joinedAt" type="date" value="${escapeHtml((user?.joinedAt || new Date().toISOString()).slice(0, 10))}"></label>
       <div id="userDnConflict" class="full">${renderDnConflictBox(initialDnConflict, initialDn)}</div>
       <label>Rang
         <select name="rank">${state.ranks.map((rank) => `<option value="${rank.value}" ${Number(user?.rank ?? 0) === Number(rank.value) ? "selected" : ""}>${escapeHtml(rankOptionLabel(rank))}</option>`).join("")}</select>
@@ -6922,6 +7044,7 @@ function openUserModal(user) {
       <label>Rolle
         <select name="role">${baseRoles.map((role) => `<option ${selectedRole === role ? "selected" : ""}>${escapeHtml(role)}</option>`).join("")}</select>
       </label>
+      ${renderTeamlerControl(user)}
       ${renderItRoleControls(user)}
       <div class="full">
         <p class="muted">Ausbildungen</p>
@@ -6948,6 +7071,7 @@ function openUserModal(user) {
       delete body.isITLead;
       body.departments = user?.departments || [];
       body.rank = Number(body.rank);
+      body.teamler = form.get("teamler") === "on";
       body.overwriteDn = $("#overwriteDn")?.checked || false;
       body.trainings = Object.fromEntries(trainings.map((training) => [training, form.get(`training_${training}`) === "on"]));
       try {
@@ -7120,6 +7244,7 @@ function openRehireUserModal(user) {
       <label>Nachname / Doppelname<input name="lastName" id="rehireLastName" value="" required></label>
       <label>Telefonnummer<input name="phone" id="rehirePhone" value="" required></label>
       <label>Dienstnummer<input name="dn" id="rehireDnInput" inputmode="numeric" pattern="[0-9]+" value="" required></label>
+      <label>Einstellungsdatum<input name="joinedAt" id="rehireJoinedAt" type="date" value=""></label>
       <label>Rang
         <select name="rank" id="rehireRank">
           <option value="">Rang auswählen</option>
@@ -7129,6 +7254,7 @@ function openRehireUserModal(user) {
       <label>Rolle
         <select name="role">${baseRoles.map((role) => `<option ${selectedRole === role ? "selected" : ""}>${escapeHtml(role)}</option>`).join("")}</select>
       </label>
+      ${renderTeamlerControl(user)}
       ${renderItRoleControls(user)}
       <label class="full">Grund der Wiedereinstellung<textarea name="reason">Wiedereinstellung</textarea></label>
       <div class="full">
@@ -7156,8 +7282,10 @@ function openRehireUserModal(user) {
             firstName: form.get("firstName"),
             lastName: form.get("lastName"),
             phone: form.get("phone"),
+            joinedAt: form.get("joinedAt"),
             role,
             baseRole,
+            teamler: form.get("teamler") === "on",
             reason: form.get("reason"),
             overwriteDn: $("#overwriteDn")?.checked || false,
             trainings: Object.fromEntries(trainings.map((training) => [training, form.get(`training_${training}`) === "on"]))
@@ -7178,6 +7306,7 @@ function openRehireUserModal(user) {
       modal.querySelector("#rehireLastName").value = user.lastName || "";
       modal.querySelector("#rehirePhone").value = user.phone || "";
       modal.querySelector("#rehireDnInput").value = oldDn;
+      modal.querySelector("#rehireJoinedAt").value = new Date().toISOString().slice(0, 10);
       modal.querySelector("#rehireRank").value = String(info.oldRank ?? user.rank ?? "");
       modal.querySelector("#rehireDnConflict").innerHTML = renderDnConflictBox(dnConflictFor(oldDn, user.id), oldDn);
     });

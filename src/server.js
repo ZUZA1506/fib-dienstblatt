@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const fs = require("fs");
+const https = require("https");
 const path = require("path");
 const express = require("express");
 
@@ -187,6 +188,8 @@ function readDb() {
   }
   db.users.forEach((user) => {
     if (!user.baseRole) user.baseRole = ["IT", "IT-Leitung"].includes(user.role) ? "Direktion" : user.role || "User";
+    user.teamler = Boolean(user.teamler);
+    user.trainingMeta = user.trainingMeta && typeof user.trainingMeta === "object" ? user.trainingMeta : {};
     if (user.trainings?.Schiessen && !user.trainings["Schießen"]) {
       user.trainings["Schießen"] = true;
       delete user.trainings.Schiessen;
@@ -493,6 +496,8 @@ function normalizeUserInput(body, existingUser) {
     : existingUser?.baseRole || (["IT", "IT-Leitung"].includes(role) ? "Direktion" : role);
   const departments = Array.isArray(body.departments) ? body.departments.map(String) : existingUser?.departments || [];
   const trainings = body.trainings && typeof body.trainings === "object" ? body.trainings : existingUser?.trainings || {};
+  const teamler = Boolean(body.teamler);
+  const joinedAt = String(body.joinedAt || existingUser?.joinedAt || todayIso()).slice(0, 10);
 
   if (!firstName || !lastName || !phone || !dn || Number.isNaN(rank)) {
     return { error: "Name, Nachname, Telefon, DN und Rang sind Pflichtfelder." };
@@ -511,6 +516,8 @@ function normalizeUserInput(body, existingUser) {
       rank,
       role,
       baseRole,
+      teamler,
+      joinedAt,
       departments,
       trainings
     }
@@ -548,6 +555,7 @@ function userChangeSummary(db, before, after) {
     ["lastName", "Nachname"],
     ["phone", "Telefon"],
     ["dn", "Dienstnummer"],
+    ["joinedAt", "Einstellungsdatum"],
     ["role", "Rolle"]
   ];
   fields.forEach(([key, label]) => {
@@ -560,6 +568,18 @@ function userChangeSummary(db, before, after) {
     if (had !== has) changes.push(`Ausbildung ${training} ${has ? "hinzugefügt" : "entfernt"}`);
   });
   return changes.join("; ");
+}
+
+function updateTrainingMeta(user, beforeTrainings, afterTrainings, actor) {
+  user.trainingMeta = user.trainingMeta && typeof user.trainingMeta === "object" ? user.trainingMeta : {};
+  trainingNames.forEach((training) => {
+    const had = Boolean(beforeTrainings?.[training]);
+    const has = Boolean(afterTrainings?.[training]);
+    if (has && !had) {
+      user.trainingMeta[training] = { completedAt: nowIso(), completedBy: actorName(actor) };
+    }
+    if (!has && had) delete user.trainingMeta[training];
+  });
 }
 
 function daysSince(dateValue) {
@@ -603,6 +623,23 @@ app.use(express.static(PUBLIC_DIR, {
     if (filePath.endsWith(".css")) res.setHeader("Content-Type", "text/css; charset=utf-8");
   }
 }));
+
+app.get("/api/evidence-preview", (req, res) => {
+  const url = String(req.query.url || "");
+  if (!/^https:\/\/(?:www\.)?prnt\.sc\//i.test(url)) return res.status(400).end();
+  https.get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (remote) => {
+    let body = "";
+    remote.setEncoding("utf8");
+    remote.on("data", (chunk) => { body += chunk; });
+    remote.on("end", () => {
+      const match = body.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+        || body.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+      const imageUrl = match?.[1] || "";
+      if (!/^https?:\/\//i.test(imageUrl) || /st\.prntscr\.com\//i.test(imageUrl)) return res.status(404).end();
+      res.redirect(imageUrl);
+    });
+  }).on("error", () => res.status(404).end());
+});
 
 app.post("/api/login", (req, res) => {
   const db = readDb();
@@ -670,16 +707,17 @@ app.post("/api/users", requireAuth, requireRole("Direktion"), (req, res) => {
     id: makeId("user"),
     ...normalized.value,
     trainings: { ...Object.fromEntries(trainingNames.map((training) => [training, false])), ...normalized.value.trainings },
-    joinedAt: todayIso(),
     lastPromotionAt: todayIso(),
     passwordHash: hashPassword(DEFAULT_PASSWORD),
     avatarUrl: "",
     locked: false,
     accountStatus: "Aktiv",
     terminated: false,
+    trainingMeta: {},
     createdAt,
     updatedAt: createdAt
   };
+  updateTrainingMeta(user, {}, user.trainings, req.user);
 
   req.db.users.push(user);
   logFluctuation(req.db, user, "Eingestellt", req.user);
@@ -703,10 +741,12 @@ app.patch("/api/users/:id", requireAuth, requireRole("Direktion"), (req, res) =>
 
   const before = publicUser(user);
   const rankChanged = Number(user.rank) !== Number(normalized.value.rank);
+  const beforeTrainings = { ...(user.trainings || {}) };
   Object.assign(user, normalized.value, {
     lastPromotionAt: rankChanged ? todayIso() : user.lastPromotionAt,
     updatedAt: nowIso()
   });
+  updateTrainingMeta(user, beforeTrainings, user.trainings, req.user);
 
   const after = publicUser(user);
   logAction(req.db, req.user, "Benutzer bearbeitet", `${user.firstName} ${user.lastName}`.trim(), { before, after, description: userChangeSummary(req.db, before, after) });
@@ -861,6 +901,7 @@ app.post("/api/users/:id/rehire", requireAuth, requireRole("Direktion"), (req, r
   const firstName = String(req.body.firstName || user.firstName || "").trim();
   const lastName = String(req.body.lastName || user.lastName || "").trim();
   const phone = String(req.body.phone || user.phone || "").trim();
+  const joinedAt = String(req.body.joinedAt || todayIso()).slice(0, 10);
   const requestedRole = roles.includes(req.body.role) ? req.body.role : user.role;
   const roleCheck = protectItRoleChange(req.user, user.role, requestedRole);
   if (roleCheck.error) return res.status(403).json({ error: roleCheck.error });
@@ -878,9 +919,13 @@ app.post("/api/users/:id/rehire", requireAuth, requireRole("Direktion"), (req, r
   user.phone = phone;
   user.role = role;
   user.baseRole = baseRole;
+  user.teamler = Boolean(req.body.teamler);
   user.dn = dn;
   user.rank = rank;
+  user.joinedAt = joinedAt;
+  const beforeTrainings = { ...(user.trainings || {}) };
   user.trainings = { ...Object.fromEntries(trainingNames.map((training) => [training, false])), ...(req.body.trainings || user.termination?.oldTrainings || user.trainings || {}) };
+  updateTrainingMeta(user, beforeTrainings, user.trainings, req.user);
   user.rehiredAt = nowIso();
   user.updatedAt = nowIso();
   logFluctuation(req.db, user, "Eingestellt", req.user);
@@ -1342,8 +1387,11 @@ app.delete("/api/notes/:id", requireAuth, requirePermission("actions", "manageNo
 
 app.post("/api/duty/start", requireAuth, (req, res) => {
   const status = String(req.body.status || "");
-  if (!["Innendienst", "Außendienst", "Undercover Dienst"].includes(status)) {
+  if (!["Innendienst", "Außendienst", "Undercover Dienst", "Admin Dienst"].includes(status)) {
     return res.status(400).json({ error: "Ungueltiger Dienststatus." });
+  }
+  if (status === "Admin Dienst" && !req.user.teamler && (rolePower[req.user.role] || 0) < rolePower.IT) {
+    return res.status(403).json({ error: "Admin Dienst ist nur für Teamler freigegeben." });
   }
   if (req.db.duty.some((entry) => entry.userId === req.user.id)) {
     return res.status(400).json({ error: "Du bist bereits im Dienst." });
@@ -1359,6 +1407,29 @@ app.post("/api/duty/start", requireAuth, (req, res) => {
   logAction(req.db, req.user, "Dienst gestartet", status, { after: entry });
   writeDb(req.db);
   res.status(201).json({ entry });
+});
+
+app.post("/api/duty/switch", requireAuth, (req, res) => {
+  const status = String(req.body.status || "");
+  if (!["Innendienst", "Außendienst", "Undercover Dienst", "Admin Dienst"].includes(status)) {
+    return res.status(400).json({ error: "Ungueltiger Dienststatus." });
+  }
+  if (status === "Admin Dienst" && !req.user.teamler && (rolePower[req.user.role] || 0) < rolePower.IT) {
+    return res.status(403).json({ error: "Admin Dienst ist nur für Teamler freigegeben." });
+  }
+  const active = req.db.duty.find((entry) => entry.userId === req.user.id);
+  if (!active) return res.status(400).json({ error: "Du bist aktuell nicht im Dienst." });
+  const before = { ...active };
+  active.status = status;
+  active.switchedAt = nowIso();
+  const history = req.db.dutyHistory.find((entry) => entry.id === active.id) || req.db.dutyHistory.find((entry) => entry.userId === req.user.id && !entry.endedAt);
+  if (history) {
+    history.status = status;
+    history.switchedAt = active.switchedAt;
+  }
+  logAction(req.db, req.user, "Dienst umgetragen", status, { before, after: active });
+  writeDb(req.db);
+  res.json({ entry: active });
 });
 
 app.post("/api/duty/stop", requireAuth, (req, res) => {
