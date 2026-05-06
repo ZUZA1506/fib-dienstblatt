@@ -4814,6 +4814,7 @@ function renderPage() {
   if (state.page === "Dienstblatt") return renderDienstblatt();
   if (state.page === "Mitglieder") return renderMembers();
   if (state.page === "Mitgliederfluktation") return renderFluctuation();
+  if (state.page === "Beschlagnahmung") return renderSeizures();
   if (state.page === "Kalender") return renderCalendar();
   if (state.page === "Informationen") return renderInformation();
   if (state.page === "Postfach") return renderPostfach();
