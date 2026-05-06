@@ -95,16 +95,7 @@ const dutyOptions = [
 ];
 
 function availableDutyOptions() {
-  const myId = state.currentUser?.id;
-  const departmentDuties = (state.departments || [])
-    .filter((department) => department.id !== "direktion" && department.members?.some((member) => member.userId === myId))
-    .map((department) => ({
-      title: `${department.name} Dienst`,
-      description: department.name,
-      icon: department.id === "swat" ? "Direktion" : "Abteilungen",
-      departmentOnly: true
-    }));
-  return [...dutyOptions, ...departmentDuties];
+  return dutyOptions;
 }
 
 const pageDescriptions = {
@@ -6917,9 +6908,13 @@ function openStartDutyModal() {
   let selected = "";
   openModal(`
     <div class="duty-modal-shell">
-      <div class="duty-primary-icon">${iconSvg("Direktion")}</div>
-      <h3>Dienst eintragen</h3>
-      <p>Wählen Sie Ihren Dienstbereich aus</p>
+      <div class="duty-modal-title">
+        <div class="duty-primary-icon">${iconSvg("Direktion")}</div>
+        <div>
+          <h3>Dienst eintragen</h3>
+          <p>Wählen Sie Ihren Dienstbereich aus</p>
+        </div>
+      </div>
       <div class="choice-grid duty-choice-grid">
       ${availableDutyOptions().map((option) => {
         const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
@@ -6963,9 +6958,13 @@ function openSwitchDutyModal() {
   const current = state.duty.find((entry) => entry.userId === state.currentUser.id)?.status || "";
   openModal(`
     <div class="duty-modal-shell">
-      <div class="duty-primary-icon">${iconSvg("Einsatzzentrale")}</div>
-      <h3>Dienst umtragen</h3>
-      <p>Aktuell: ${escapeHtml(current || "Nicht im Dienst")}</p>
+      <div class="duty-modal-title">
+        <div class="duty-primary-icon">${iconSvg("Einsatzzentrale")}</div>
+        <div>
+          <h3>Dienst umtragen</h3>
+          <p>Aktuell: ${escapeHtml(current || "Nicht im Dienst")}</p>
+        </div>
+      </div>
       <div class="choice-grid duty-choice-grid">
       ${availableDutyOptions().filter((option) => option.title !== current).map((option) => {
         const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");

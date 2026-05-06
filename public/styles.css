@@ -3923,17 +3923,23 @@ table td.text-left {
 .mini-table {
   min-width: 100%;
   table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .mini-table th,
 .mini-table td {
-  height: 74px;
-  min-height: 74px;
-  padding: 16px 8px;
+  height: auto;
+  min-height: 86px;
+  padding: 18px 8px;
   text-align: left;
   vertical-align: middle;
   white-space: normal;
   border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.mini-table tbody tr {
+  height: 86px;
 }
 
 .mini-table th {
@@ -3960,22 +3966,28 @@ table td.text-left {
 .dept-card-name {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 8px;
-  line-height: 1.35;
+  min-height: 48px;
+  padding: 3px 0;
+  line-height: 1.45;
   text-align: left;
   white-space: normal;
 }
 
 .dept-card-name span:last-child {
+  display: block;
+  align-self: center;
+  max-height: none;
   overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .online-dot {
   width: 10px;
   height: 10px;
   display: inline-block;
-  margin: 3px 0 0;
+  margin: 10px 0 0;
   border-radius: 999px;
   background: #ff4d55;
   box-shadow: 0 0 0 2px rgba(255, 77, 85, .16);
@@ -5239,7 +5251,7 @@ table td.text-left {
 }
 
 .mini-table tr {
-  min-height: 74px;
+  min-height: 86px;
 }
 
 .training-toggle span {
@@ -5332,43 +5344,45 @@ table td.text-left {
 
 .duty-choice-grid {
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 10px;
 }
 
 .duty-choice-card {
-  min-height: 80px;
-  grid-template-columns: 56px minmax(0, 1fr);
+  min-height: 66px;
+  grid-template-columns: 46px minmax(0, 1fr);
   align-items: center;
   text-align: left;
-  padding: 16px;
+  padding: 12px 14px;
   color: #e8f2ff;
-  background: #202c3f;
-  border: 2px solid #43546d;
-  border-radius: 7px;
+  background: #253348;
+  border: 1px solid #4d607a;
+  border-left: 4px solid transparent;
+  border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
 }
 
 .duty-choice-card:hover,
 .duty-choice-card.active {
   border-color: #69aaff;
-  background: #24354e;
+  border-left-color: #69aaff;
+  background: #2b3d58;
   box-shadow: 0 0 0 1px rgba(105, 170, 255, .15);
 }
 
 .duty-choice-card i {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   color: #dbe8ff;
   border: 0;
-  border-radius: 11px;
-  background: #536174;
+  border-radius: 9px;
+  background: #4a5b70;
 }
 
 .duty-choice-card i svg {
-  width: 19px;
-  height: 19px;
+  width: 17px;
+  height: 17px;
   stroke: currentColor;
 }
 
@@ -5384,25 +5398,25 @@ table td.text-left {
 
 .duty-choice-card span {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .duty-choice-card strong {
   color: #eef6ff;
-  font-size: 20px;
+  font-size: 17px;
   line-height: 1.05;
 }
 
 .duty-choice-card small {
   color: #c3ccd9;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .modal.duty-modal {
-  width: min(448px, calc(100vw - 28px));
-  padding: 24px;
-  background: #1d2a3d;
+  width: min(430px, calc(100vw - 28px));
+  padding: 22px;
+  background: #1e2b3f;
   border-color: #50637c;
   box-shadow: 0 30px 90px rgba(0, 0, 0, .62);
 }
@@ -5413,16 +5427,14 @@ table td.text-left {
 
 .duty-modal-shell {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .duty-primary-icon {
-  width: 64px;
-  height: 64px;
+  width: 54px;
+  height: 54px;
   display: grid;
   place-items: center;
-  justify-self: center;
-  margin-bottom: 6px;
   color: #ffffff;
   border-radius: 999px;
   background: #3478f6;
@@ -5430,28 +5442,36 @@ table td.text-left {
 }
 
 .duty-primary-icon svg {
-  width: 32px;
-  height: 32px;
+  width: 27px;
+  height: 27px;
   stroke: currentColor;
 }
 
-.duty-modal-shell h3 {
-  margin: 2px 0 -12px;
+.duty-modal-title {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.duty-modal-title h3 {
+  margin: 0;
   color: #69adff;
-  font-size: 31px;
+  font-size: 28px;
   line-height: 1.05;
 }
 
-.duty-modal-shell > p {
-  margin: 0 0 18px;
+.duty-modal-title p {
+  margin: 6px 0 0;
   color: #d1d8e4;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .duty-modal-actions {
-  margin-top: 30px;
-  padding-top: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
   border-top: 1px solid #2c3b51;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5459,9 +5479,9 @@ table td.text-left {
 }
 
 .duty-modal-actions button {
-  min-height: 40px;
+  min-height: 38px;
   justify-content: center;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .doc-search-control {
