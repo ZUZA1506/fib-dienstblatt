@@ -510,11 +510,13 @@ async function bootstrap() {
 }
 
 function showLogin() {
+  $("#loadingView")?.classList.add("hidden");
   $("#loginView").classList.remove("hidden");
   $("#appView").classList.add("hidden");
 }
 
 function showApp() {
+  $("#loadingView")?.classList.add("hidden");
   $("#loginView").classList.add("hidden");
   $("#appView").classList.remove("hidden");
 }

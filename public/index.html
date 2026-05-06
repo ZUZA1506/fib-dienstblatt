@@ -11,7 +11,15 @@
     <link rel="stylesheet" href="/styles.css?v=20260503-3">
   </head>
   <body>
-    <div id="loginView" class="login-shell">
+    <div id="loadingView" class="loading-shell">
+      <div class="loading-panel">
+        <img src="/fib-logo.jpg?v=20260429-10" alt="FIB">
+        <strong>Dienstblatt wird geladen</strong>
+        <span></span>
+      </div>
+    </div>
+
+    <div id="loginView" class="login-shell hidden">
       <form id="loginForm" class="login-panel">
         <div>
           <p class="eyebrow">FIB Intern</p>
@@ -19,11 +27,11 @@
         </div>
         <label>
           Name
-          <input id="loginName" autocomplete="username" placeholder="Admin Direktion" required>
+          <input id="loginName" autocomplete="username" placeholder="Vorname Nachname-Doppelname" required>
         </label>
         <label>
           Passwort
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="FIB12345" required>
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Passwort" required>
         </label>
         <button type="submit" class="primary-btn">Einloggen</button>
         <p id="loginError" class="form-error"></p>
