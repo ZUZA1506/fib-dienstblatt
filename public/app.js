@@ -88,10 +88,10 @@ let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1
 let selectedCalendarDate = isoDateLocal(new Date());
 let trainingTimerInterval = null;
 const dutyOptions = [
-  { title: "Innendienst", description: "Büro & Verwaltung", icon: "Abteilungen" },
-  { title: "Außendienst", description: "Streife & Einsatz", icon: "Kalender" },
-  { title: "Undercover Dienst", description: "Zivil Einheit", icon: "Mitglieder" },
-  { title: "Admin Dienst", description: "Teamler / Administration", icon: "IT", teamlerOnly: true }
+  { title: "Innendienst", description: "Büro, Verwaltung, Leitstelle", icon: "Abteilungen", tone: "inside" },
+  { title: "Außendienst", description: "Streife, Einsatz und Außendienst", icon: "Kalender", tone: "outside" },
+  { title: "Undercover Dienst", description: "Zivile Arbeit und verdeckte Maßnahmen", icon: "Mitglieder", tone: "undercover" },
+  { title: "Admin Dienst", description: "Teamler / administrative Tätigkeiten", icon: "IT", teamlerOnly: true, tone: "admin" }
 ];
 
 function availableDutyOptions() {
@@ -6915,28 +6915,31 @@ function openNoteModal(note = null) {
 function openStartDutyModal() {
   let selected = "";
   openModal(`
-    <div class="duty-modal-shell">
-      <div class="duty-modal-title">
-        <div class="duty-primary-icon">${iconSvg("Direktion")}</div>
+    <div class="duty-workflow">
+      <div class="duty-workflow-head">
+        <span class="duty-head-icon">${iconSvg("Dienstblatt")}</span>
         <div>
+          <span class="duty-kicker">Dienststatus</span>
           <h3>Dienst eintragen</h3>
-          <p>Wählen Sie Ihren Dienstbereich aus</p>
+          <p>Wähle den Bereich aus, in dem du jetzt arbeitest.</p>
         </div>
       </div>
-      <div class="choice-grid duty-choice-grid">
+      <div class="duty-choice-grid">
       ${availableDutyOptions().map((option) => {
         const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
         return `
-        <button class="choice-card duty-choice-card" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}>
+        <button class="duty-choice-card ${escapeHtml(option.tone || "default")}" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}>
+          <span class="duty-card-accent"></span>
           <i>${iconSvg(option.icon)}</i>
-          <span><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler" : option.description)}</small></span>
+          <span class="duty-card-copy"><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler freigegeben" : option.description)}</small></span>
+          <span class="duty-card-check">✓</span>
         </button>
       `;}).join("")}
       </div>
       <p id="modalError" class="form-error"></p>
-      <div class="modal-actions duty-modal-actions">
-        <button class="red-btn" data-close>Abbrechen</button>
-        <button class="blue-btn" id="confirmDuty" disabled>Dienst starten</button>
+      <div class="duty-modal-actions">
+        <button class="ghost-btn" data-close>Abbrechen</button>
+        <button class="blue-btn" id="confirmDuty" disabled>Eintragen</button>
       </div>
     </div>
   `, (modal) => {
@@ -6965,23 +6968,24 @@ function openSwitchDutyModal() {
   let selected = "";
   const current = state.duty.find((entry) => entry.userId === state.currentUser.id)?.status || "";
   openModal(`
-    <div class="duty-modal-shell">
-      <div class="duty-modal-title">
-        <div class="duty-primary-icon">${iconSvg("Einsatzzentrale")}</div>
+    <div class="duty-workflow">
+      <div class="duty-workflow-head">
+        <span class="duty-head-icon">${iconSvg("Einsatzzentrale")}</span>
         <div>
+          <span class="duty-kicker">Dienstwechsel</span>
           <h3>Dienst umtragen</h3>
           <p>Aktuell: ${escapeHtml(current || "Nicht im Dienst")}</p>
         </div>
       </div>
-      <div class="choice-grid duty-choice-grid">
+      <div class="duty-choice-grid">
       ${availableDutyOptions().filter((option) => option.title !== current).map((option) => {
         const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
-        return `<button class="choice-card duty-choice-card" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}><i>${iconSvg(option.icon)}</i><span><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler" : option.description)}</small></span></button>`;
+        return `<button class="duty-choice-card ${escapeHtml(option.tone || "default")}" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}><span class="duty-card-accent"></span><i>${iconSvg(option.icon)}</i><span class="duty-card-copy"><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler freigegeben" : option.description)}</small></span><span class="duty-card-check">✓</span></button>`;
       }).join("")}
       </div>
       <p id="modalError" class="form-error"></p>
-      <div class="modal-actions duty-modal-actions">
-        <button class="red-btn" data-close>Abbrechen</button>
+      <div class="duty-modal-actions">
+        <button class="ghost-btn" data-close>Abbrechen</button>
         <button class="blue-btn" id="confirmSwitchDuty" disabled>Umtragen</button>
       </div>
     </div>

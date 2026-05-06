@@ -5347,146 +5347,214 @@ table td.text-left {
   color: #8fa8ca;
 }
 
-.duty-choice-grid {
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-.duty-choice-card {
-  min-height: 80px;
-  grid-template-columns: 56px minmax(0, 1fr);
-  align-items: center;
-  text-align: left;
-  padding: 16px;
-  color: #dce7f6;
-  background: #202b3c;
-  border: 2px solid #465a74;
-  border-radius: 7px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
-}
-
-.duty-choice-card:hover,
-.duty-choice-card.active {
-  border-color: #6eaaff;
-  background: #233248;
-  box-shadow: 0 0 0 1px rgba(105, 170, 255, .15);
-}
-
-.duty-choice-card i {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  color: #d2def0;
-  border: 0;
-  border-radius: 11px;
-  background: #536174;
-}
-
-.duty-choice-card i svg {
-  width: 19px;
-  height: 19px;
-  stroke: currentColor;
-}
-
-.duty-choice-card[disabled] {
-  opacity: .52;
-  cursor: not-allowed;
-}
-
-.duty-choice-card[disabled] strong,
-.duty-choice-card[disabled] small {
-  color: #7f8ca0;
-}
-
-.duty-choice-card span {
-  display: grid;
-  gap: 5px;
-}
-
-.duty-choice-card strong {
-  color: #eef6ff;
-  font-size: 20px;
-  line-height: 1.05;
-}
-
-.duty-choice-card small {
-  color: #c1cbd8;
-  font-size: 14px;
-  font-weight: 900;
-}
-
 .modal.duty-modal {
-  width: min(448px, calc(100vw - 28px));
-  padding: 24px;
-  background: #1d2a3d;
-  border-color: #51647e;
-  box-shadow: 0 30px 90px rgba(0, 0, 0, .62);
+  width: min(560px, calc(100vw - 28px));
+  padding: 0;
+  overflow: hidden;
+  background: #0e1726;
+  border: 1px solid #2f4b6f;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .66);
 }
 
 .duty-modal .modal-x {
-  color: #07101d;
+  top: 14px;
+  right: 14px;
+  color: #8ba9ce;
 }
 
-.duty-modal-shell {
+.duty-workflow {
   display: grid;
   gap: 18px;
+  padding: 24px;
+  background:
+    linear-gradient(145deg, rgba(37, 99, 235, .18), transparent 38%),
+    #111c2d;
 }
 
-.duty-primary-icon {
-  width: 64px;
-  height: 64px;
+.duty-workflow-head {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #28425f;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .035);
+}
+
+.duty-head-icon {
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
-  justify-self: center;
-  margin-bottom: 18px;
-  color: #ffffff;
-  border-radius: 999px;
-  background: #3478f6;
-  box-shadow: 0 14px 26px rgba(52, 120, 246, .35);
+  color: #8cc7ff;
+  border-radius: 12px;
+  background: rgba(74, 163, 255, .12);
+  border: 1px solid rgba(74, 163, 255, .32);
 }
 
-.duty-primary-icon svg {
-  width: 32px;
-  height: 32px;
+.duty-head-icon svg {
+  width: 24px;
+  height: 24px;
   stroke: currentColor;
 }
 
-.duty-modal-title {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  align-items: start;
-  margin-bottom: 18px;
+.duty-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #78b8ff;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .08em;
 }
 
-.duty-modal-title h3 {
+.duty-workflow h3 {
   margin: 0;
-  color: #69adff;
-  font-size: 31px;
-  line-height: 1.05;
+  color: #f3f8ff;
+  font-size: 25px;
+  line-height: 1.1;
 }
 
-.duty-modal-title p {
-  margin: 10px 0 0;
-  color: #d1d8e4;
+.duty-workflow p {
+  margin: 5px 0 0;
+  color: #a9bdd7;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.duty-choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.duty-choice-card {
+  position: relative;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 5px 48px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 0;
+  color: #eaf3ff;
+  background: #172438;
+  border: 1px solid #2e4563;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.duty-choice-card:hover {
+  transform: translateY(-1px);
+  border-color: #55799f;
+  background: #1b2b43;
+}
+
+.duty-choice-card.active {
+  border-color: #65b5ff;
+  background: #1d334f;
+  box-shadow: 0 0 0 1px rgba(101, 181, 255, .25);
+}
+
+.duty-card-accent {
+  width: 5px;
+  height: 100%;
+  border-radius: 10px 0 0 10px;
+  background: #64748b;
+}
+
+.duty-choice-card.inside .duty-card-accent {
+  background: #38bdf8;
+}
+
+.duty-choice-card.outside .duty-card-accent {
+  background: #facc15;
+}
+
+.duty-choice-card.undercover .duty-card-accent {
+  background: #a78bfa;
+}
+
+.duty-choice-card.admin .duty-card-accent {
+  background: #ef4444;
+}
+
+.duty-choice-card i {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: #dcecff;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, .16);
+  border: 1px solid rgba(148, 163, 184, .2);
+}
+
+.duty-choice-card i svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+
+.duty-card-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.duty-card-copy strong {
+  color: #f4f8ff;
   font-size: 18px;
-  font-weight: 900;
+  line-height: 1.1;
+}
+
+.duty-card-copy small {
+  color: #9fb1ca;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.duty-card-check {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  border: 1px solid #435a76;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .04);
+  font-weight: 950;
+}
+
+.duty-choice-card.active .duty-card-check {
+  color: #082032;
+  border-color: #7dd3fc;
+  background: #7dd3fc;
+}
+
+.duty-choice-card[disabled] {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
+.duty-choice-card[disabled]:hover {
+  transform: none;
+  border-color: #2e4563;
+  background: #172438;
 }
 
 .duty-modal-actions {
-  margin-top: 30px;
-  padding-top: 16px;
-  border-top: 1px solid #2c3b51;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #263a55;
 }
 
 .duty-modal-actions button {
-  min-height: 40px;
+  min-height: 42px;
   justify-content: center;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .doc-search-control {
