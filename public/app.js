@@ -6052,23 +6052,31 @@ function positionClass(position) {
 }
 
 function renderProfileTrainingPanel(user) {
-  const orderedTrainings = trainingGroups.flat();
+  const groupTitles = ["Grundausbildung", "Führung / EL", "Spezialisierungen"];
+  const renderTrainingTile = (training) => {
+    const done = Boolean(user.trainings?.[training]);
+    const meta = user.trainingMeta?.[training] || {};
+    const metaText = meta.completedAt
+      ? `${formatDateTime(meta.completedAt)} · ${escapeHtml(meta.completedBy || "Unbekannt")}`
+      : "Vor Systemumstellung";
+    return `
+      <div class="profile-training-row ${done ? "done" : "open"}">
+        <span>${escapeHtml(training)}</span>
+        <b>${done ? "Abgeschlossen" : "Offen"}${done ? `<small>${metaText}</small>` : ""}</b>
+      </div>
+    `;
+  };
   return `
     <div class="panel-header"><h3>Ausbildung</h3><span class="muted">Nach Ausbildungsreihenfolge sortiert</span></div>
-    <div class="profile-training-grid flat-training-grid">
-      ${orderedTrainings.map((training) => {
-        const done = Boolean(user.trainings?.[training]);
-        const meta = user.trainingMeta?.[training] || {};
-        const metaText = meta.completedAt
-          ? `${formatDateTime(meta.completedAt)} · ${escapeHtml(meta.completedBy || "Unbekannt")}`
-          : "Vor Systemumstellung";
-        return `
-          <div class="profile-training-row ${done ? "done" : "open"}">
-            <span>${escapeHtml(training)}</span>
-            <b>${done ? "Abgeschlossen" : "Offen"}${done ? `<small>${metaText}</small>` : ""}</b>
+    <div class="profile-training-group-grid">
+      ${trainingGroups.map((group, index) => `
+        <section class="profile-training-group">
+          <h4>${escapeHtml(groupTitles[index] || `Gruppe ${index + 1}`)}</h4>
+          <div class="profile-training-grid flat-training-grid">
+            ${group.map(renderTrainingTile).join("")}
           </div>
-        `;
-      }).join("")}
+        </section>
+      `).join("")}
     </div>
   `;
 }

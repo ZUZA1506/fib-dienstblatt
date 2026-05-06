@@ -2896,14 +2896,19 @@ table td.text-left {
   gap: 12px;
 }
 
+.profile-training-group-grid {
+  display: grid;
+  gap: 14px;
+}
+
 .flat-training-grid {
   align-items: stretch;
 }
 
 .profile-training-group {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 12px;
+  padding: 14px;
   border: 1px solid #30445f;
   border-radius: 8px;
   background: #142033;
@@ -3930,8 +3935,8 @@ table td.text-left {
 .mini-table th,
 .mini-table td {
   height: auto;
-  min-height: 86px;
-  padding: 18px 8px;
+  min-height: 68px;
+  padding: 12px 8px;
   text-align: left;
   vertical-align: middle;
   white-space: normal;
@@ -3939,7 +3944,7 @@ table td.text-left {
 }
 
 .mini-table tbody tr {
-  height: 86px;
+  height: 68px;
 }
 
 .mini-table th {
@@ -3966,11 +3971,11 @@ table td.text-left {
 .dept-card-name {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 3px 0;
-  line-height: 1.45;
+  min-height: 42px;
+  padding: 2px 0;
+  line-height: 1.35;
   text-align: left;
   white-space: normal;
 }
@@ -3987,7 +3992,7 @@ table td.text-left {
   width: 10px;
   height: 10px;
   display: inline-block;
-  margin: 10px 0 0;
+  margin: 0;
   border-radius: 999px;
   background: #ff4d55;
   box-shadow: 0 0 0 2px rgba(255, 77, 85, .16);
@@ -5251,7 +5256,7 @@ table td.text-left {
 }
 
 .mini-table tr {
-  min-height: 86px;
+  min-height: 68px;
 }
 
 .training-toggle span {
@@ -5344,45 +5349,43 @@ table td.text-left {
 
 .duty-choice-grid {
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 16px;
 }
 
 .duty-choice-card {
-  min-height: 66px;
-  grid-template-columns: 46px minmax(0, 1fr);
+  min-height: 80px;
+  grid-template-columns: 56px minmax(0, 1fr);
   align-items: center;
   text-align: left;
-  padding: 12px 14px;
-  color: #e8f2ff;
-  background: #253348;
-  border: 1px solid #4d607a;
-  border-left: 4px solid transparent;
-  border-radius: 8px;
+  padding: 16px;
+  color: #dce7f6;
+  background: #202b3c;
+  border: 2px solid #465a74;
+  border-radius: 7px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
 }
 
 .duty-choice-card:hover,
 .duty-choice-card.active {
-  border-color: #69aaff;
-  border-left-color: #69aaff;
-  background: #2b3d58;
+  border-color: #6eaaff;
+  background: #233248;
   box-shadow: 0 0 0 1px rgba(105, 170, 255, .15);
 }
 
 .duty-choice-card i {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  color: #dbe8ff;
+  color: #d2def0;
   border: 0;
-  border-radius: 9px;
-  background: #4a5b70;
+  border-radius: 11px;
+  background: #536174;
 }
 
 .duty-choice-card i svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   stroke: currentColor;
 }
 
@@ -5398,26 +5401,26 @@ table td.text-left {
 
 .duty-choice-card span {
   display: grid;
-  gap: 2px;
+  gap: 5px;
 }
 
 .duty-choice-card strong {
   color: #eef6ff;
-  font-size: 17px;
+  font-size: 20px;
   line-height: 1.05;
 }
 
 .duty-choice-card small {
-  color: #c3ccd9;
-  font-size: 12px;
+  color: #c1cbd8;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .modal.duty-modal {
-  width: min(430px, calc(100vw - 28px));
-  padding: 22px;
-  background: #1e2b3f;
-  border-color: #50637c;
+  width: min(448px, calc(100vw - 28px));
+  padding: 24px;
+  background: #1d2a3d;
+  border-color: #51647e;
   box-shadow: 0 30px 90px rgba(0, 0, 0, .62);
 }
 
@@ -5427,14 +5430,16 @@ table td.text-left {
 
 .duty-modal-shell {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .duty-primary-icon {
-  width: 54px;
-  height: 54px;
+  width: 64px;
+  height: 64px;
   display: grid;
   place-items: center;
+  justify-self: center;
+  margin-bottom: 18px;
   color: #ffffff;
   border-radius: 999px;
   background: #3478f6;
@@ -5442,36 +5447,36 @@ table td.text-left {
 }
 
 .duty-primary-icon svg {
-  width: 27px;
-  height: 27px;
+  width: 32px;
+  height: 32px;
   stroke: currentColor;
 }
 
 .duty-modal-title {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-  margin-bottom: 6px;
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: start;
+  margin-bottom: 18px;
 }
 
 .duty-modal-title h3 {
   margin: 0;
   color: #69adff;
-  font-size: 28px;
+  font-size: 31px;
   line-height: 1.05;
 }
 
 .duty-modal-title p {
-  margin: 6px 0 0;
+  margin: 10px 0 0;
   color: #d1d8e4;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .duty-modal-actions {
-  margin-top: 16px;
-  padding-top: 14px;
+  margin-top: 30px;
+  padding-top: 16px;
   border-top: 1px solid #2c3b51;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5479,9 +5484,9 @@ table td.text-left {
 }
 
 .duty-modal-actions button {
-  min-height: 38px;
+  min-height: 40px;
   justify-content: center;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .doc-search-control {
