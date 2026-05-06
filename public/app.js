@@ -700,6 +700,12 @@ function defconClass(defcon) {
 
 function renderDutyTable() {
   if (!state.duty.length) return `<p class="muted">Aktuell ist niemand im Dienst.</p>`;
+  const sortedDuty = [...state.duty].sort((a, b) => {
+    const userA = a.user || state.users.find((item) => item.id === a.userId) || {};
+    const userB = b.user || state.users.find((item) => item.id === b.userId) || {};
+    return Number(userB.rank || 0) - Number(userA.rank || 0)
+      || fullName(userA).localeCompare(fullName(userB), "de");
+  });
   return `
     <div class="table-wrap">
       <table>
@@ -709,7 +715,7 @@ function renderDutyTable() {
           </tr>
         </thead>
         <tbody>
-          ${state.duty.map((entry) => {
+          ${sortedDuty.map((entry) => {
             const user = entry.user || state.users.find((item) => item.id === entry.userId);
             return `
               <tr>
