@@ -1,0 +1,5 @@
+node_modules/
+storage/dienstblatt.json
+storage/*.json
+*.log
+.env

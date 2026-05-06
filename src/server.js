@@ -161,6 +161,7 @@ function ensureStorage() {
       informationText: "Hier können später zentrale Informationen für alle Agents gepflegt werden.",
       applicationStatus: "Offen",
       calendarEvents: [],
+      seizures: [],
       fluctuation: [],
       uprankRules: defaultUprankRules(),
       uprankAdjustments: [],
@@ -200,6 +201,7 @@ function readDb() {
   db.settings.applicationStatus = db.settings.applicationStatus || "Offen";
   if (typeof db.settings.defconText !== "string") db.settings.defconText = "Automatisch / Manuell aktualisierbar";
   db.settings.calendarEvents = Array.isArray(db.settings.calendarEvents) ? db.settings.calendarEvents : [];
+  db.settings.seizures = Array.isArray(db.settings.seizures) ? db.settings.seizures : [];
   db.settings.uprankRules = normalizeUprankRules(db.settings.uprankRules);
   db.settings.uprankAdjustments = Array.isArray(db.settings.uprankAdjustments) ? db.settings.uprankAdjustments : [];
   db.settings.permissions = normalizePermissions(db.settings.permissions);
@@ -1419,6 +1421,37 @@ app.delete("/api/duty/history/:id", requireAuth, requirePermission("actions", "m
   logAction(req.db, req.user, "Dienstzeit entfernt", entry?.status || req.params.id, { before: entry || null });
   writeDb(req.db);
   res.json({ ok: true });
+});
+
+app.post("/api/seizures", requireAuth, (req, res) => {
+  const suspect = String(req.body.suspect || "").trim();
+  const location = String(req.body.location || "").trim();
+  if (!suspect || !location) {
+    return res.status(400).json({ error: "Tatverdächtiger und Standort sind Pflichtfelder." });
+  }
+  const numberValue = (value) => Math.max(0, Number(value || 0) || 0);
+  const sourceType = String(req.body.sourceType || "Normal").trim() === "Dealer" ? "Dealer" : "Normal";
+  const entry = {
+    id: makeId("seizure"),
+    suspect,
+    location,
+    weapons: String(req.body.weapons || "").trim(),
+    drugs: String(req.body.drugs || "").trim(),
+    other: String(req.body.other || "").trim(),
+    witness: String(req.body.witness || "").trim(),
+    murder: Boolean(req.body.murder),
+    blackMoney: numberValue(req.body.blackMoney),
+    crates: numberValue(req.body.crates),
+    sourceType,
+    officerId: req.user.id,
+    officerName: actorName(req.user),
+    createdAt: nowIso()
+  };
+  req.db.settings.seizures = Array.isArray(req.db.settings.seizures) ? req.db.settings.seizures : [];
+  req.db.settings.seizures.unshift(entry);
+  logAction(req.db, req.user, "Beschlagnahmung erstellt", suspect, { after: entry });
+  writeDb(req.db);
+  res.status(201).json({ seizure: entry, settings: req.db.settings });
 });
 
 app.post("/api/calendar/events", requireAuth, (req, res) => {

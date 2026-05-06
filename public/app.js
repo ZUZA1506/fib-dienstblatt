@@ -467,6 +467,7 @@ function successMessage(path, method) {
   if (path.includes("/profile/password")) return "Passwort geändert.";
   if (path.includes("/profile/avatar")) return "Avatar gespeichert.";
   if (path.includes("/file")) return method === "DELETE" ? "Akteneintrag entfernt." : "Akteneintrag gespeichert.";
+  if (path.includes("/seizures") && method === "POST") return "Beschlagnahmung eingetragen.";
   if (path.includes("/suspend")) return "Mitglied suspendiert.";
   if (path.includes("/dismiss")) return "Mitglied entlassen.";
   if (path.includes("/users") && method === "POST") return "Mitglied eingestellt.";
@@ -607,6 +608,7 @@ function renderPage() {
   if (state.page === "Dienstblatt") return renderDienstblatt();
   if (state.page === "Mitglieder") return renderMembers();
   if (state.page === "Mitgliederfluktation") return renderFluctuation();
+  if (state.page === "Beschlagnahmung") return renderSeizures();
   if (state.page === "Kalender") return renderCalendar();
   if (state.page === "Informationen") return renderInformation();
   if (state.page === "Direktion") return renderDirektion();
@@ -6236,6 +6238,175 @@ function renderTemplate(page) {
       <p class="muted">Template-Seite. Die Funktionen können hier als nächstes erweitert werden.</p>
     </section>
   `;
+}
+
+function seizureItems() {
+  return [...(state.settings?.seizures || [])].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+function formatMoney(value) {
+  const amount = Number(value || 0);
+  return amount > 0 ? `${amount.toLocaleString("de-DE")}$` : "-";
+}
+
+function renderSeizures() {
+  const search = localStorage.getItem("fib_seizure_search") || "";
+  const items = seizureItems();
+  const filtered = items.filter((item) => {
+    const haystack = [
+      item.suspect,
+      item.location,
+      item.weapons,
+      item.drugs,
+      item.other,
+      item.witness,
+      item.sourceType,
+      item.officerName
+    ].join(" ").toLowerCase();
+    return haystack.includes(search.toLowerCase());
+  });
+  const totalBlackMoney = items.reduce((sum, item) => sum + (Number(item.blackMoney) || 0), 0);
+  const totalCrates = items.reduce((sum, item) => sum + (Number(item.crates) || 0), 0);
+  const dealerCount = items.filter((item) => item.sourceType === "Dealer").length;
+
+  content.innerHTML = `
+    <section class="seizure-page">
+      <div class="page-action-row">
+        <div></div>
+        <button class="blue-btn" id="addSeizureBtn">${iconSvg("Plus")} Neue Beschlagnahmung</button>
+      </div>
+      <div class="grid-4 seizure-stats">
+        <article class="stat-card"><span>Einträge</span><strong>${items.length}</strong><small>Gesamt erfasst</small></article>
+        <article class="stat-card"><span>Schwarzgeld</span><strong>${totalBlackMoney.toLocaleString("de-DE")}$</strong><small>Gesamtmenge</small></article>
+        <article class="stat-card"><span>Kisten</span><strong>${totalCrates.toLocaleString("de-DE")}</strong><small>Gesamtmenge</small></article>
+        <article class="stat-card"><span>Dealer</span><strong>${dealerCount}</strong><small>Dealer-Beschlagnahmungen</small></article>
+      </div>
+      <section class="panel seizure-panel">
+        <div class="panel-header">
+          <div><h3>${iconSvg("Beschlagnahmung")} Beschlagnahmungen (${filtered.length})</h3><p class="muted">Suche nach Tatverdächtigem, Standort, Officer oder Inhalt.</p></div>
+          <button class="ghost-btn" id="refreshSeizures">Aktualisieren</button>
+        </div>
+        <div class="seizure-search-row">
+          <input id="seizureSearch" value="${escapeHtml(search)}" placeholder="Suche nach Tatverdächtiger, Standort oder Officer...">
+          <button class="blue-btn" id="runSeizureSearch">Suchen</button>
+        </div>
+        <div class="table-wrap seizure-table-wrap">
+          <table class="seizure-table">
+            <thead>
+              <tr>
+                <th>Tatverdächtiger</th>
+                <th>Standort</th>
+                <th>Waffen</th>
+                <th>Betäubungsmittel</th>
+                <th>Sonstiges</th>
+                <th>Schwarzgeld</th>
+                <th>Kisten</th>
+                <th>Art</th>
+                <th>Zeugen</th>
+                <th>Mord/Totschlag</th>
+                <th>Zeitstempel</th>
+                <th>Officer</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map((item) => `
+                <tr>
+                  <td><strong>${escapeHtml(item.suspect || "-")}</strong></td>
+                  <td>${escapeHtml(item.location || "-")}</td>
+                  <td>${escapeHtml(item.weapons || "-")}</td>
+                  <td>${escapeHtml(item.drugs || "-")}</td>
+                  <td>${escapeHtml(item.other || "-")}</td>
+                  <td>${formatMoney(item.blackMoney)}</td>
+                  <td>${Number(item.crates || 0) || "-"}</td>
+                  <td><span class="seizure-pill ${item.sourceType === "Dealer" ? "dealer" : "normal"}">${escapeHtml(item.sourceType || "Normal")}</span></td>
+                  <td>${escapeHtml(item.witness || "-")}</td>
+                  <td><span class="seizure-pill ${item.murder ? "yes" : "no"}">${item.murder ? "Ja" : "Nein"}</span></td>
+                  <td>${formatDateTime(item.createdAt)}</td>
+                  <td>${escapeHtml(item.officerName || "-")}</td>
+                </tr>
+              `).join("") || `<tr><td colspan="12" class="empty-table">Keine Beschlagnahmungen gefunden.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  `;
+
+  $("#addSeizureBtn")?.addEventListener("click", () => openSeizureModal());
+  $("#refreshSeizures")?.addEventListener("click", () => bootstrap());
+  $("#runSeizureSearch")?.addEventListener("click", () => {
+    localStorage.setItem("fib_seizure_search", $("#seizureSearch").value);
+    renderSeizures();
+  });
+  $("#seizureSearch")?.addEventListener("input", (event) => {
+    localStorage.setItem("fib_seizure_search", event.target.value);
+  });
+  $("#seizureSearch")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    localStorage.setItem("fib_seizure_search", event.target.value);
+    renderSeizures();
+  });
+}
+
+function openSeizureModal() {
+  const witnessOptions = state.users
+    .filter((user) => !user.terminated)
+    .sort((a, b) => fullName(a).localeCompare(fullName(b), "de"))
+    .map((user) => `<option value="${escapeHtml(fullName(user))}">${escapeHtml(fullName(user))} (${escapeHtml(user.dn || "-")})</option>`)
+    .join("");
+  openModal(`
+    <div class="seizure-modal-head"><span>${iconSvg("Plus")}</span><h3>Neue Beschlagnahmung</h3></div>
+    <div class="seizure-modal-grid">
+      <label>Tatverdächtiger <b>*</b><input id="seizureSuspect" placeholder="Name des Tatverdächtigen" required></label>
+      <label>Standort <b>*</b><input id="seizureLocation" placeholder="Ort der Beschlagnahmung" required></label>
+      <label class="full">Waffen<textarea id="seizureWeapons" placeholder="Beschreibung der beschlagnahmten Waffen"></textarea></label>
+      <label class="full">Betäubungsmittel<textarea id="seizureDrugs" placeholder="Beschreibung der beschlagnahmten Betäubungsmittel"></textarea></label>
+      <label class="full">Sonstiges<textarea id="seizureOther" placeholder="Andere beschlagnahmte Gegenstände"></textarea></label>
+      <label>Schwarzgeld Menge<input id="seizureBlackMoney" type="number" min="0" step="1" placeholder="0"></label>
+      <label>Kisten Menge<input id="seizureCrates" type="number" min="0" step="1" placeholder="0"></label>
+      <label>Art
+        <select id="seizureSourceType">
+          <option>Normal</option>
+          <option>Dealer</option>
+        </select>
+      </label>
+      <label>Zeuge
+        <select id="seizureWitness">
+          <option value="">Officer als Zeuge auswählen...</option>
+          ${witnessOptions}
+        </select>
+      </label>
+      <label class="checkbox-line seizure-checkbox"><input id="seizureMurder" type="checkbox"> Mord/Totschlag</label>
+    </div>
+    <p id="modalError" class="form-error"></p>
+    <div class="modal-actions"><button class="blue-btn full-action" id="saveSeizure">Beschlagnahmung eintragen</button></div>
+  `, (modal) => {
+    modal.classList.add("seizure-modal");
+    modal.querySelector("#saveSeizure").addEventListener("click", async () => {
+      try {
+        const data = await api("/api/seizures", {
+          method: "POST",
+          body: JSON.stringify({
+            suspect: $("#seizureSuspect").value,
+            location: $("#seizureLocation").value,
+            weapons: $("#seizureWeapons").value,
+            drugs: $("#seizureDrugs").value,
+            other: $("#seizureOther").value,
+            witness: $("#seizureWitness").value,
+            murder: $("#seizureMurder").checked,
+            blackMoney: $("#seizureBlackMoney").value,
+            crates: $("#seizureCrates").value,
+            sourceType: $("#seizureSourceType").value
+          })
+        });
+        state.settings = data.settings || { ...state.settings, seizures: [data.seizure, ...(state.settings.seizures || [])] };
+        closeModal();
+        renderSeizures();
+      } catch (error) {
+        $("#modalError").textContent = error.message;
+      }
+    });
+  });
 }
 
 function renderCalendar() {
