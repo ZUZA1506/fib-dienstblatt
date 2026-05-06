@@ -420,13 +420,13 @@ textarea:focus {
 .profile-copy span {
   width: fit-content;
   max-width: 100%;
-  padding: 3px 7px;
-  color: #bfe0ff;
-  background: rgba(74, 163, 255, .14);
-  border: 1px solid rgba(74, 163, 255, .32);
-  border-radius: 5px;
+  padding: 0;
+  color: #66b7ff;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .profile-copy em {
@@ -2378,8 +2378,64 @@ tr:last-child td {
 
 .seizure-murder-toggle {
   min-height: 42px;
-  grid-template-columns: auto 48px;
+  grid-template-columns: max-content 48px;
   justify-content: start;
+  column-gap: 28px;
+  width: fit-content;
+  min-width: 260px;
+}
+
+.required-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.required-label b {
+  color: #ff7177;
+}
+
+.seizure-source-field {
+  display: grid;
+  gap: 8px;
+  color: #d8e5f8;
+  font-weight: 900;
+}
+
+.seizure-source-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.seizure-source-options label {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.seizure-source-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.seizure-source-options span {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 1px solid #33465f;
+  border-radius: 8px;
+  background: #172235;
+}
+
+.seizure-source-options input:checked + span {
+  color: #ffffff;
+  border-color: #4aa3ff;
+  background: rgba(37, 99, 235, .36);
 }
 
 .seizure-murder-toggle input:checked ~ .it-toggle-ui {
@@ -2535,6 +2591,12 @@ tr:last-child td {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px 22px;
+}
+
+.seizure-modal-grid label {
+  display: grid;
+  gap: 8px;
+  align-content: start;
 }
 
 .seizure-modal-grid .full {
@@ -2715,8 +2777,8 @@ table td.text-left {
 }
 
 .member-rank-col {
-  min-width: 190px;
-  width: 190px;
+  min-width: 86px;
+  width: 86px;
 }
 
 .member-name-wrap {
@@ -2736,6 +2798,20 @@ table td.text-left {
 .rank-wrap {
   display: inline-block;
   max-width: 180px;
+}
+
+.rank-number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 30px;
+  padding: 4px 9px;
+  color: #dbeafe;
+  border: 1px solid #33465f;
+  border-radius: 7px;
+  background: #152238;
+  font-weight: 950;
+  cursor: help;
 }
 
 .muted {
@@ -2816,8 +2892,12 @@ table td.text-left {
 
 .profile-training-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
+}
+
+.flat-training-grid {
+  align-items: stretch;
 }
 
 .profile-training-group {
@@ -2840,12 +2920,11 @@ table td.text-left {
 }
 
 .profile-training-row {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  min-height: 96px;
+  display: grid;
+  align-content: space-between;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 13px 14px;
   border: 1px solid #263850;
   border-radius: 8px;
   background: rgba(0, 0, 0, .12);
@@ -2861,6 +2940,10 @@ table td.text-left {
 
 .profile-training-row.open b {
   color: #ff9ca0;
+}
+
+.flat-training-grid .profile-training-row > span {
+  font-weight: 950;
 }
 
 .profile-training-row b small {
@@ -3844,8 +3927,9 @@ table td.text-left {
 
 .mini-table th,
 .mini-table td {
-  height: 64px;
-  padding: 14px 8px;
+  height: 74px;
+  min-height: 74px;
+  padding: 16px 8px;
   text-align: left;
   vertical-align: middle;
   white-space: normal;
@@ -5145,12 +5229,17 @@ table td.text-left {
   background: #172235;
   color: #dbe8ff;
   font-weight: 800;
+  cursor: pointer;
 }
 
 .training-toggle input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
+}
+
+.mini-table tr {
+  min-height: 74px;
 }
 
 .training-toggle span {
@@ -5163,6 +5252,12 @@ table td.text-left {
   border: 1px solid #31445d;
   border-radius: 999px;
   background: rgba(255, 255, 255, .03);
+  cursor: pointer;
+}
+
+.training-toggle:hover span {
+  border-color: #4aa3ff;
+  background: rgba(37, 99, 235, .12);
 }
 
 .training-toggle input:checked + span {
@@ -5236,30 +5331,42 @@ table td.text-left {
 }
 
 .duty-choice-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .duty-choice-card {
-  min-height: 88px;
-  grid-template-columns: 42px 1fr;
+  min-height: 78px;
+  grid-template-columns: 46px 1fr;
   align-items: center;
   text-align: left;
+  background: linear-gradient(135deg, #192943, #132036);
+  border-color: #3e5e82;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+.duty-choice-card:hover,
+.duty-choice-card.active {
+  border-color: #5eb1ff;
+  background: linear-gradient(135deg, rgba(37, 99, 235, .36), #172846);
+  transform: translateY(-1px);
 }
 
 .duty-choice-card i {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  color: #8ec5ff;
-  border: 1px solid #34506f;
+  color: #dceeff;
+  border: 1px solid #4d7299;
   border-radius: 8px;
   background: #0d1728;
 }
 
 .duty-choice-card i svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
 }
 
 .duty-choice-card[disabled] {
@@ -5276,6 +5383,22 @@ table td.text-left {
   color: #91a7c4;
   font-size: 12px;
   font-weight: 900;
+}
+
+.table-subline {
+  display: block;
+  margin-top: 5px;
+  color: #8fa8ca;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.user-actions {
+  width: 34px;
+  height: 34px;
+  color: #dbeafe;
+  border: 1px solid #3f5877;
+  background: #172338;
 }
 
 .doc-search-mark.active-search-mark {
@@ -5515,7 +5638,8 @@ table td.text-left {
 .modal {
   width: min(620px, 100%);
   max-height: 92vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   display: grid;
   gap: 15px;
@@ -5586,6 +5710,8 @@ table td.text-left {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .full {

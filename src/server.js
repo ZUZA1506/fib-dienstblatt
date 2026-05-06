@@ -1497,14 +1497,14 @@ app.delete("/api/duty/history/:id", requireAuth, requirePermission("actions", "m
 app.post("/api/seizures", requireAuth, (req, res) => {
   const suspect = String(req.body.suspect || "").trim();
   const location = String(req.body.location || "").trim();
-  if (!suspect || !location) {
-    return res.status(400).json({ error: "Tatverdächtiger und Standort sind Pflichtfelder." });
-  }
   const numberValue = (value) => Math.max(0, Number(value || 0) || 0);
   const sourceType = String(req.body.sourceType || "Normal").trim() === "Dealer" ? "Dealer" : "Normal";
   const evidenceLinks = Array.isArray(req.body.evidenceLinks)
     ? req.body.evidenceLinks.map((item) => String(item || "").trim()).filter(Boolean)
     : String(req.body.evidenceLink || req.body.weapons || "").split("\n").map((item) => item.trim()).filter(Boolean);
+  if (!suspect || !location || !evidenceLinks.length) {
+    return res.status(400).json({ error: "Tatverdächtiger, Standort und mindestens ein Beweis sind Pflichtfelder." });
+  }
   const entry = {
     id: makeId("seizure"),
     suspect,
@@ -1536,12 +1536,12 @@ app.patch("/api/seizures/:id", requireAuth, (req, res) => {
   if (!canEditAll && entry.officerId !== req.user.id) return res.status(403).json({ error: "Keine Berechtigung." });
   const suspect = String(req.body.suspect || "").trim();
   const location = String(req.body.location || "").trim();
-  if (!suspect || !location) return res.status(400).json({ error: "Tatverdächtiger und Standort sind Pflichtfelder." });
   const before = { ...entry };
   const numberValue = (value) => Math.max(0, Number(value || 0) || 0);
   const evidenceLinks = Array.isArray(req.body.evidenceLinks)
     ? req.body.evidenceLinks.map((item) => String(item || "").trim()).filter(Boolean)
     : [];
+  if (!suspect || !location || !evidenceLinks.length) return res.status(400).json({ error: "Tatverdächtiger, Standort und mindestens ein Beweis sind Pflichtfelder." });
   Object.assign(entry, {
     suspect,
     location,

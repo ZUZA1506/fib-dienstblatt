@@ -783,7 +783,7 @@ function renderMembers() {
                 <td class="member-name-col text-left"><span class="member-name member-name-wrap">${avatarMarkup(user, "sm")}<span>${wrapNameForTable(fullName(user))}</span></span></td>
                 <td class="text-center">${escapeHtml(user.phone)}</td>
                 <td class="text-left">${escapeHtml(user.dn)}</td>
-                <td class="member-rank-col text-center"><span class="rank-wrap">${escapeHtml(rankLabel(user.rank))}</span></td>
+                <td class="member-rank-col text-center"><span class="rank-number" title="${escapeHtml(rankLabel(user.rank))}">${escapeHtml(user.rank)}</span></td>
                 <td class="text-left">${formatDate(user.joinedAt)}</td>
                 <td class="text-left">${formatDate(user.lastPromotionAt)}</td>
                 ${trainingGroups.map((group) => group.map((training) => {
@@ -1157,7 +1157,7 @@ function renderDirectionMembersPanel() {
           <tbody>
             ${state.users.map((user) => `
               <tr class="${userStatusRowClass(user)}">
-                <td>${escapeHtml(fullName(user))}</td>
+                <td><strong>${escapeHtml(fullName(user))}</strong><small class="table-subline">Einstellung: ${formatDate(user.joinedAt)}</small></td>
                 <td>${escapeHtml(user.phone)}</td>
                 <td>${escapeHtml(user.dn)}</td>
                 <td>${escapeHtml(rankLabel(user.rank))}</td>
@@ -1750,6 +1750,7 @@ function canGrantItRoles() {
 
 function departmentTab(department) {
   const selected = state.departmentTabs?.[department.id] || "overview";
+  if (selected === "members") return "overview";
   if (selected === "leadership" && !departmentActionAllowed(department, "departmentLeadership")) return "overview";
   return selected;
 }
@@ -2326,7 +2327,6 @@ function renderDepartmentPage(department) {
       <div class="department-control-row">
         <div class="tabs-row department-tabs">
           <button class="${tab === "overview" ? "tab-active" : ""}" data-department-tab="overview">\u00dcbersicht</button>
-          <button class="${tab === "members" ? "tab-active" : ""}" data-department-tab="members">Mitglieder</button>
           ${canLeadership ? `<button class="${tab === "leadership" ? "tab-active" : ""}" data-department-tab="leadership">Leitung</button>` : ""}
           ${isTrainingDepartment ? `<button class="${tab === "estExam" ? "tab-active" : ""}" data-department-tab="estExam">EST Prüfung</button>` : ""}
           ${isTrainingDepartment ? `<button class="${tab === "moduleExam" ? "tab-active" : ""}" data-department-tab="moduleExam">Modul Prüfungen</button>` : ""}
@@ -2338,7 +2338,6 @@ function renderDepartmentPage(department) {
         <div class="stat-card internal-stat-card"><span>Leitung / Stv. Leitung</span><i>${iconSvg("Direktion")}</i><strong>${escapeHtml(leaderText === "-" ? "-" : leaders.length)}</strong><small>${escapeHtml(leaderText)}</small></div>
       </div>
       ${tab === "overview" ? renderDepartmentOverviewPanels(department, canMembers, canNotes) : ""}
-      ${tab === "members" ? `<div class="panel department-overview-content"><div class="panel-header"><h3><span class="section-icon">${iconSvg("Mitglieder")}</span>Mitglieder</h3>${canMembers ? `<button class="blue-btn department-add" data-department-id="${escapeHtml(department.id)}">${iconSvg("Mitglieder")} Person hinzuf\u00fcgen</button>` : ""}</div>${renderDepartmentMemberTable(department)}</div>` : ""}
       ${tab === "leadership" && canLeadership ? renderDepartmentLeadershipPanel(department) : ""}
       ${tab === "estExam" && isTrainingDepartment ? renderEstExamPanel(department) : ""}
       ${tab === "moduleExam" && isTrainingDepartment ? renderModuleExamPanel(department) : ""}
@@ -5765,7 +5764,7 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
       marks.forEach((mark) => mark.classList.remove("active-search-mark"));
       marks[searchIndex].classList.add("active-search-mark");
       marks[searchIndex].scrollIntoView({ block: "center", behavior: "smooth" });
-      if (counter) counter.textContent = `${searchIndex + 1} / ${marks.length}`;
+      if (counter) counter.textContent = `${searchIndex + 1} / ${marks.length} Treffer`;
     };
     modal.querySelector("#docSearchInput")?.addEventListener("input", (event) => {
       const term = event.target.value.trim();
@@ -6049,27 +6048,23 @@ function positionClass(position) {
 }
 
 function renderProfileTrainingPanel(user) {
-  const groupTitles = ["Grundausbildung", "Führung / EL", "Spezialisierungen"];
+  const orderedTrainings = trainingGroups.flat();
   return `
     <div class="panel-header"><h3>Ausbildung</h3><span class="muted">Nach Ausbildungsreihenfolge sortiert</span></div>
-    <div class="profile-training-grid">
-      ${trainingGroups.map((group, groupIndex) => `
-        <section class="profile-training-group">
-          <h4>${escapeHtml(groupTitles[groupIndex])}</h4>
-          <div class="profile-training-list">
-            ${group.map((training) => {
-              const done = Boolean(user.trainings?.[training]);
-              const meta = user.trainingMeta?.[training] || {};
-              return `
-                <div class="profile-training-row ${done ? "done" : "open"}">
-                  <span>${escapeHtml(training)}</span>
-                  <b>${done ? "Abgeschlossen" : "Offen"}${done ? `<small>${formatDateTime(meta.completedAt)} · ${escapeHtml(meta.completedBy || "Unbekannt")}</small>` : ""}</b>
-                </div>
-              `;
-            }).join("")}
+    <div class="profile-training-grid flat-training-grid">
+      ${orderedTrainings.map((training) => {
+        const done = Boolean(user.trainings?.[training]);
+        const meta = user.trainingMeta?.[training] || {};
+        const metaText = meta.completedAt
+          ? `${formatDateTime(meta.completedAt)} · ${escapeHtml(meta.completedBy || "Unbekannt")}`
+          : "Vor Systemumstellung";
+        return `
+          <div class="profile-training-row ${done ? "done" : "open"}">
+            <span>${escapeHtml(training)}</span>
+            <b>${done ? "Abgeschlossen" : "Offen"}${done ? `<small>${metaText}</small>` : ""}</b>
           </div>
-        </section>
-      `).join("")}
+        `;
+      }).join("")}
     </div>
   `;
 }
@@ -6527,10 +6522,10 @@ function openSeizureModal(item = null) {
   openModal(`
     <div class="seizure-modal-head"><span>${iconSvg(isEdit ? "Settings" : "Plus")}</span><h3>${isEdit ? "Beschlagnahmung bearbeiten" : "Neue Beschlagnahmung"}</h3></div>
     <div class="seizure-modal-grid">
-      <label>Tatverdächtiger <b>*</b><input id="seizureSuspect" value="${escapeHtml(item?.suspect || "")}" placeholder="Name des Tatverdächtigen" required></label>
-      <label>Standort <b>*</b><input id="seizureLocation" value="${escapeHtml(item?.location || "")}" placeholder="Ort der Beschlagnahmung" required></label>
+      <label><span class="required-label">Tatverdächtiger <b>*</b></span><input id="seizureSuspect" value="${escapeHtml(item?.suspect || "")}" placeholder="Name des Tatverdächtigen" required></label>
+      <label><span class="required-label">Standort <b>*</b></span><input id="seizureLocation" value="${escapeHtml(item?.location || "")}" placeholder="Ort der Beschlagnahmung" required></label>
       <div class="full evidence-field">
-        <div class="field-title">Beweise</div>
+        <div class="field-title required-label">Beweise <b>*</b></div>
         <div id="evidenceLinkList" class="evidence-input-list">
           ${(evidenceLinks.length ? evidenceLinks : [""]).map((link, index) => index === 0
             ? `<input class="evidence-link-input" value="${escapeHtml(link)}" placeholder="Screenshot-Link / Beweis-Link">`
@@ -6540,12 +6535,13 @@ function openSeizureModal(item = null) {
       </div>
       <label>Schwarzgeld Menge<input id="seizureBlackMoney" type="number" min="0" step="1" value="${escapeHtml(item?.blackMoney || "")}" placeholder="0"></label>
       <label>Kisten Menge<input id="seizureCrates" type="number" min="0" step="1" value="${escapeHtml(item?.crates || "")}" placeholder="0"></label>
-      <label>Art
-        <select id="seizureSourceType">
-          <option ${item?.sourceType !== "Dealer" ? "selected" : ""}>Normal</option>
-          <option ${item?.sourceType === "Dealer" ? "selected" : ""}>Dealer</option>
-        </select>
-      </label>
+      <div class="seizure-source-field">
+        <span>Fundart</span>
+        <div class="seizure-source-options">
+          <label><input type="radio" name="seizureSourceType" value="Normal" ${item?.sourceType !== "Dealer" ? "checked" : ""}><span>Normal</span></label>
+          <label><input type="radio" name="seizureSourceType" value="Dealer" ${item?.sourceType === "Dealer" ? "checked" : ""}><span>Dealer</span></label>
+        </div>
+      </div>
       <label>Zeuge / Agent
         <select id="seizureWitness">
           <option value="" ${item?.witness ? "" : "selected"}>Agent auswählen...</option>
@@ -6565,17 +6561,22 @@ function openSeizureModal(item = null) {
     modal.querySelectorAll(".remove-evidence-link").forEach((button) => button.addEventListener("click", () => button.closest(".evidence-input-row")?.remove()));
     modal.querySelector("#saveSeizure").addEventListener("click", async () => {
       try {
+        const evidenceLinks = [...document.querySelectorAll(".evidence-link-input")].map((input) => input.value.trim()).filter(Boolean);
+        if (!evidenceLinks.length) {
+          $("#modalError").textContent = "Bitte mindestens einen Beweis-Link eintragen.";
+          return;
+        }
         const data = await api(isEdit ? `/api/seizures/${item.id}` : "/api/seizures", {
           method: isEdit ? "PATCH" : "POST",
           body: JSON.stringify({
             suspect: $("#seizureSuspect").value,
             location: $("#seizureLocation").value,
-            evidenceLinks: [...document.querySelectorAll(".evidence-link-input")].map((input) => input.value),
+            evidenceLinks,
             witness: $("#seizureWitness").value,
             murder: $("#seizureMurder").checked,
             blackMoney: $("#seizureBlackMoney").value,
             crates: $("#seizureCrates").value,
-            sourceType: $("#seizureSourceType").value
+            sourceType: document.querySelector("input[name='seizureSourceType']:checked")?.value || "Normal"
           })
         });
         state.settings = data.settings || { ...state.settings, seizures: [data.seizure, ...(state.settings.seizures || [])] };
