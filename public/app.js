@@ -94,6 +94,19 @@ const dutyOptions = [
   { title: "Admin Dienst", description: "Teamler / Administration", icon: "IT", teamlerOnly: true }
 ];
 
+function availableDutyOptions() {
+  const myId = state.currentUser?.id;
+  const departmentDuties = (state.departments || [])
+    .filter((department) => department.id !== "direktion" && department.members?.some((member) => member.userId === myId))
+    .map((department) => ({
+      title: `${department.name} Dienst`,
+      description: department.name,
+      icon: department.id === "swat" ? "Direktion" : "Abteilungen",
+      departmentOnly: true
+    }));
+  return [...dutyOptions, ...departmentDuties];
+}
+
 const pageDescriptions = {
   "Einsatzzentrale": "Koordination laufender Einsätze und operativer Meldungen",
   "Beschlagnahmung": "Erfassung und Verwaltung beschlagnahmter Gegenstände",
@@ -6903,9 +6916,12 @@ function openNoteModal(note = null) {
 function openStartDutyModal() {
   let selected = "";
   openModal(`
-    <h3>Dienst eintragen</h3>
-    <div class="choice-grid duty-choice-grid">
-      ${dutyOptions.map((option) => {
+    <div class="duty-modal-shell">
+      <div class="duty-primary-icon">${iconSvg("Direktion")}</div>
+      <h3>Dienst eintragen</h3>
+      <p>Wählen Sie Ihren Dienstbereich aus</p>
+      <div class="choice-grid duty-choice-grid">
+      ${availableDutyOptions().map((option) => {
         const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
         return `
         <button class="choice-card duty-choice-card" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}>
@@ -6913,13 +6929,15 @@ function openStartDutyModal() {
           <span><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler" : option.description)}</small></span>
         </button>
       `;}).join("")}
-    </div>
-    <p id="modalError" class="form-error"></p>
-    <div class="modal-actions">
-      <button class="ghost-btn" data-close>Abbrechen</button>
-      <button class="blue-btn" id="confirmDuty" disabled>Dienst Starten</button>
+      </div>
+      <p id="modalError" class="form-error"></p>
+      <div class="modal-actions duty-modal-actions">
+        <button class="red-btn" data-close>Abbrechen</button>
+        <button class="blue-btn" id="confirmDuty" disabled>Dienst starten</button>
+      </div>
     </div>
   `, (modal) => {
+    modal.classList.add("duty-modal");
     modal.querySelectorAll(".choice-card").forEach((button) => {
       button.addEventListener("click", () => {
         selected = button.dataset.status;
@@ -6944,20 +6962,24 @@ function openSwitchDutyModal() {
   let selected = "";
   const current = state.duty.find((entry) => entry.userId === state.currentUser.id)?.status || "";
   openModal(`
-    <h3>Dienst umtragen</h3>
-    <p class="muted">Aktuell: ${escapeHtml(current)}</p>
-    <div class="choice-grid duty-choice-grid">
-      ${dutyOptions.filter((option) => option.title !== current).map((option) => {
+    <div class="duty-modal-shell">
+      <div class="duty-primary-icon">${iconSvg("Einsatzzentrale")}</div>
+      <h3>Dienst umtragen</h3>
+      <p>Aktuell: ${escapeHtml(current || "Nicht im Dienst")}</p>
+      <div class="choice-grid duty-choice-grid">
+      ${availableDutyOptions().filter((option) => option.title !== current).map((option) => {
         const disabled = option.teamlerOnly && !state.currentUser.teamler && !hasRole("IT");
         return `<button class="choice-card duty-choice-card" data-status="${escapeHtml(option.title)}" ${disabled ? "disabled" : ""}><i>${iconSvg(option.icon)}</i><span><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(disabled ? "Nur für Teamler" : option.description)}</small></span></button>`;
       }).join("")}
-    </div>
-    <p id="modalError" class="form-error"></p>
-    <div class="modal-actions">
-      <button class="ghost-btn" data-close>Abbrechen</button>
-      <button class="blue-btn" id="confirmSwitchDuty" disabled>Umtragen</button>
+      </div>
+      <p id="modalError" class="form-error"></p>
+      <div class="modal-actions duty-modal-actions">
+        <button class="red-btn" data-close>Abbrechen</button>
+        <button class="blue-btn" id="confirmSwitchDuty" disabled>Umtragen</button>
+      </div>
     </div>
   `, (modal) => {
+    modal.classList.add("duty-modal");
     modal.querySelectorAll(".choice-card").forEach((button) => button.addEventListener("click", () => {
       selected = button.dataset.status;
       modal.querySelectorAll(".choice-card").forEach((item) => item.classList.toggle("active", item === button));

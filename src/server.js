@@ -1387,7 +1387,10 @@ app.delete("/api/notes/:id", requireAuth, requirePermission("actions", "manageNo
 
 app.post("/api/duty/start", requireAuth, (req, res) => {
   const status = String(req.body.status || "");
-  if (!["Innendienst", "Außendienst", "Undercover Dienst", "Admin Dienst"].includes(status)) {
+  const departmentDutyStatuses = (req.db.settings.departments || [])
+    .filter((department) => department.members?.some((member) => member.userId === req.user.id))
+    .map((department) => `${department.name} Dienst`);
+  if (![..."Innendienst|Außendienst|Undercover Dienst|Admin Dienst".split("|"), ...departmentDutyStatuses].includes(status)) {
     return res.status(400).json({ error: "Ungueltiger Dienststatus." });
   }
   if (status === "Admin Dienst" && !req.user.teamler && (rolePower[req.user.role] || 0) < rolePower.IT) {
@@ -1411,7 +1414,10 @@ app.post("/api/duty/start", requireAuth, (req, res) => {
 
 app.post("/api/duty/switch", requireAuth, (req, res) => {
   const status = String(req.body.status || "");
-  if (!["Innendienst", "Außendienst", "Undercover Dienst", "Admin Dienst"].includes(status)) {
+  const departmentDutyStatuses = (req.db.settings.departments || [])
+    .filter((department) => department.members?.some((member) => member.userId === req.user.id))
+    .map((department) => `${department.name} Dienst`);
+  if (![..."Innendienst|Außendienst|Undercover Dienst|Admin Dienst".split("|"), ...departmentDutyStatuses].includes(status)) {
     return res.status(400).json({ error: "Ungueltiger Dienststatus." });
   }
   if (status === "Admin Dienst" && !req.user.teamler && (rolePower[req.user.role] || 0) < rolePower.IT) {
