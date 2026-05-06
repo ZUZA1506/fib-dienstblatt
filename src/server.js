@@ -1458,6 +1458,39 @@ app.post("/api/seizures", requireAuth, (req, res) => {
   res.status(201).json({ seizure: entry, settings: req.db.settings });
 });
 
+app.patch("/api/seizures/:id", requireAuth, (req, res) => {
+  const entry = req.db.settings.seizures.find((item) => item.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: "Beschlagnahmung nicht gefunden." });
+  const canEditAll = (rolePower[req.user.role] || 0) >= rolePower.Direktion;
+  if (!canEditAll && entry.officerId !== req.user.id) return res.status(403).json({ error: "Keine Berechtigung." });
+  const suspect = String(req.body.suspect || "").trim();
+  const location = String(req.body.location || "").trim();
+  if (!suspect || !location) return res.status(400).json({ error: "Tatverdächtiger und Standort sind Pflichtfelder." });
+  const before = { ...entry };
+  const numberValue = (value) => Math.max(0, Number(value || 0) || 0);
+  const evidenceLinks = Array.isArray(req.body.evidenceLinks)
+    ? req.body.evidenceLinks.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  Object.assign(entry, {
+    suspect,
+    location,
+    evidenceLinks,
+    weapons: "",
+    drugs: "",
+    other: "",
+    witness: String(req.body.witness || "").trim(),
+    murder: Boolean(req.body.murder),
+    blackMoney: numberValue(req.body.blackMoney),
+    crates: numberValue(req.body.crates),
+    sourceType: String(req.body.sourceType || "Normal").trim() === "Dealer" ? "Dealer" : "Normal",
+    updatedAt: nowIso(),
+    updatedBy: actorName(req.user)
+  });
+  logAction(req.db, req.user, "Beschlagnahmung bearbeitet", suspect, { before, after: entry });
+  writeDb(req.db);
+  res.json({ seizure: entry, settings: req.db.settings });
+});
+
 app.delete("/api/seizures/:id", requireAuth, requireRole("Direktion"), (req, res) => {
   const entry = req.db.settings.seizures.find((item) => item.id === req.params.id);
   if (!entry) return res.status(404).json({ error: "Beschlagnahmung nicht gefunden." });

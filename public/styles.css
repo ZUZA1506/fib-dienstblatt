@@ -2267,11 +2267,9 @@ tr:last-child td {
 
 .evidence-preview-card {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  max-width: 280px;
-  padding: 6px;
+  gap: 8px;
+  max-width: 230px;
+  padding: 8px;
   background: #101827;
   border: 1px solid #2d415c;
   border-radius: 8px;
@@ -2279,12 +2277,14 @@ tr:last-child td {
 
 .evidence-thumb-link {
   display: block;
-  width: 72px;
-  height: 48px;
+  width: 100%;
+  height: 118px;
   overflow: hidden;
   background: #0b1220;
   border: 1px solid #30445f;
   border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
 }
 
 .evidence-thumb-link img {
@@ -2293,6 +2293,16 @@ tr:last-child td {
   object-fit: cover;
   display: block;
   user-select: none;
+}
+
+.evidence-thumb-link span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #93c5fd;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .evidence-preview-card.no-preview {
@@ -2307,8 +2317,53 @@ tr:last-child td {
   overflow: hidden;
   color: #93c5fd;
   font-weight: 900;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.seizure-actions svg {
+  width: 18px;
+  height: 18px;
+}
+
+.danger-choice {
+  border-color: rgba(239, 68, 68, .42);
+}
+
+.danger-choice strong {
+  color: #ff9ca0;
+}
+
+.modal.evidence-preview-modal {
+  width: min(980px, 96vw);
+}
+
+.evidence-popup-preview {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  overflow: hidden;
+  background: #0b1220;
+  border: 1px solid #2d415c;
+  border-radius: 8px;
+}
+
+.evidence-popup-preview img {
+  max-width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+}
+
+.evidence-popup-preview iframe {
+  width: 100%;
+  height: 72vh;
+  border: 0;
+  background: #fff;
+}
+
+.evidence-popup-link {
+  justify-self: flex-end;
 }
 
 .evidence-field {
