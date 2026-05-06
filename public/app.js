@@ -6263,7 +6263,7 @@ function renderEvidenceLinks(item) {
   return `<div class="evidence-link-list">${links.map((link, index) => {
     const isUrl = /^https?:\/\//i.test(link);
     return isUrl
-      ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">Beweis ${index + 1}</a>`
+      ? `<div class="evidence-preview-card"><a class="evidence-thumb-link" href="${escapeHtml(link)}" target="_blank" rel="noopener"><img src="${escapeHtml(link)}" alt="Beweis ${index + 1}" loading="lazy" onerror="this.closest('.evidence-preview-card').classList.add('no-preview')"></a><a class="evidence-text-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Beweis ${index + 1}</a></div>`
       : `<span>${escapeHtml(link)}</span>`;
   }).join("")}</div>`;
 }
@@ -6293,17 +6293,17 @@ function renderSeizures() {
 
   content.innerHTML = `
     <section class="seizure-page">
-      <div class="seizure-stats-head">
-        <span>Statistik</span>
-        <select id="seizureStatRange" class="compact-input seizure-range-select">
-          ${ranges.map((range) => `<option value="${range}" ${statRange === range ? "selected" : ""}>${range}</option>`).join("")}
-        </select>
-      </div>
       <div class="grid-4 seizure-stats">
         <article class="stat-card"><span>Einträge</span><strong>${statItems.length}</strong><small>${escapeHtml(statRange)} erfasst</small></article>
         <article class="stat-card"><span>Schwarzgeld</span><strong>${totalBlackMoney.toLocaleString("de-DE")}$</strong><small>Gesamtmenge</small></article>
         <article class="stat-card"><span>Kisten</span><strong>${totalCrates.toLocaleString("de-DE")}</strong><small>Gesamtmenge</small></article>
         <article class="stat-card"><span>Dealer</span><strong>${dealerCount}</strong><small>Dealer-Beschlagnahmungen</small></article>
+      </div>
+      <div class="seizure-stats-head">
+        <span>Zeitraum</span>
+        <select id="seizureStatRange" class="compact-input seizure-range-select">
+          ${ranges.map((range) => `<option value="${range}" ${statRange === range ? "selected" : ""}>${range}</option>`).join("")}
+        </select>
       </div>
       <section class="panel seizure-panel">
         <div class="panel-header">
