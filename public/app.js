@@ -468,6 +468,7 @@ function successMessage(path, method) {
   if (path.includes("/profile/avatar")) return "Avatar gespeichert.";
   if (path.includes("/file")) return method === "DELETE" ? "Akteneintrag entfernt." : "Akteneintrag gespeichert.";
   if (path.includes("/seizures") && method === "POST") return "Beschlagnahmung eingetragen.";
+  if (path.includes("/seizures") && method === "DELETE") return "Beschlagnahmung gelöscht.";
   if (path.includes("/suspend")) return "Mitglied suspendiert.";
   if (path.includes("/dismiss")) return "Mitglied entlassen.";
   if (path.includes("/users") && method === "POST") return "Mitglied eingestellt.";
@@ -6250,45 +6251,67 @@ function formatMoney(value) {
   return amount > 0 ? `${amount.toLocaleString("de-DE")}$` : "-";
 }
 
+function seizureEvidenceLinks(item) {
+  const links = Array.isArray(item.evidenceLinks) ? item.evidenceLinks : [];
+  const legacy = [item.weapons, item.drugs, item.other].map((value) => String(value || "").trim()).filter(Boolean);
+  return [...links.map((value) => String(value || "").trim()).filter(Boolean), ...legacy];
+}
+
+function renderEvidenceLinks(item) {
+  const links = seizureEvidenceLinks(item);
+  if (!links.length) return "-";
+  return `<div class="evidence-link-list">${links.map((link, index) => {
+    const isUrl = /^https?:\/\//i.test(link);
+    return isUrl
+      ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">Beweis ${index + 1}</a>`
+      : `<span>${escapeHtml(link)}</span>`;
+  }).join("")}</div>`;
+}
+
 function renderSeizures() {
   const search = localStorage.getItem("fib_seizure_search") || "";
+  const statRange = localStorage.getItem("fib_seizure_stat_range") || "Gesamt";
   const items = seizureItems();
+  const statStart = rangeStart(statRange);
+  const statItems = statStart ? items.filter((item) => new Date(item.createdAt).getTime() >= statStart.getTime()) : items;
   const filtered = items.filter((item) => {
     const haystack = [
       item.suspect,
       item.location,
-      item.weapons,
-      item.drugs,
-      item.other,
+      seizureEvidenceLinks(item).join(" "),
       item.witness,
       item.sourceType,
       item.officerName
     ].join(" ").toLowerCase();
     return haystack.includes(search.toLowerCase());
   });
-  const totalBlackMoney = items.reduce((sum, item) => sum + (Number(item.blackMoney) || 0), 0);
-  const totalCrates = items.reduce((sum, item) => sum + (Number(item.crates) || 0), 0);
-  const dealerCount = items.filter((item) => item.sourceType === "Dealer").length;
+  const totalBlackMoney = statItems.reduce((sum, item) => sum + (Number(item.blackMoney) || 0), 0);
+  const totalCrates = statItems.reduce((sum, item) => sum + (Number(item.crates) || 0), 0);
+  const dealerCount = statItems.filter((item) => item.sourceType === "Dealer").length;
+  const canDelete = hasRole("Direktion");
+  const ranges = ["Heute", "Woche", "Monat", "Gesamt"];
 
   content.innerHTML = `
     <section class="seizure-page">
-      <div class="page-action-row">
-        <div></div>
-        <button class="blue-btn" id="addSeizureBtn">${iconSvg("Plus")} Neue Beschlagnahmung</button>
+      <div class="seizure-stats-head">
+        <span>Statistik</span>
+        <select id="seizureStatRange" class="compact-input seizure-range-select">
+          ${ranges.map((range) => `<option value="${range}" ${statRange === range ? "selected" : ""}>${range}</option>`).join("")}
+        </select>
       </div>
       <div class="grid-4 seizure-stats">
-        <article class="stat-card"><span>Einträge</span><strong>${items.length}</strong><small>Gesamt erfasst</small></article>
+        <article class="stat-card"><span>Einträge</span><strong>${statItems.length}</strong><small>${escapeHtml(statRange)} erfasst</small></article>
         <article class="stat-card"><span>Schwarzgeld</span><strong>${totalBlackMoney.toLocaleString("de-DE")}$</strong><small>Gesamtmenge</small></article>
         <article class="stat-card"><span>Kisten</span><strong>${totalCrates.toLocaleString("de-DE")}</strong><small>Gesamtmenge</small></article>
         <article class="stat-card"><span>Dealer</span><strong>${dealerCount}</strong><small>Dealer-Beschlagnahmungen</small></article>
       </div>
       <section class="panel seizure-panel">
         <div class="panel-header">
-          <div><h3>${iconSvg("Beschlagnahmung")} Beschlagnahmungen (${filtered.length})</h3><p class="muted">Suche nach Tatverdächtigem, Standort, Officer oder Inhalt.</p></div>
-          <button class="ghost-btn" id="refreshSeizures">Aktualisieren</button>
+          <div><h3>${iconSvg("Beschlagnahmung")} Beschlagnahmungen (${filtered.length})</h3><p class="muted">Suche nach Tatverdächtigem, Standort, Agent oder Beweis.</p></div>
+          <button class="blue-btn" id="addSeizureBtn">${iconSvg("Plus")} Neue Beschlagnahmung</button>
         </div>
         <div class="seizure-search-row">
-          <input id="seizureSearch" value="${escapeHtml(search)}" placeholder="Suche nach Tatverdächtiger, Standort oder Officer...">
+          <input id="seizureSearch" value="${escapeHtml(search)}" placeholder="Suche nach Tatverdächtiger, Standort, Agent oder Beweis...">
           <button class="blue-btn" id="runSeizureSearch">Suchen</button>
         </div>
         <div class="table-wrap seizure-table-wrap">
@@ -6297,16 +6320,15 @@ function renderSeizures() {
               <tr>
                 <th>Tatverdächtiger</th>
                 <th>Standort</th>
-                <th>Waffen</th>
-                <th>Betäubungsmittel</th>
-                <th>Sonstiges</th>
+                <th>Beweise</th>
                 <th>Schwarzgeld</th>
                 <th>Kisten</th>
                 <th>Art</th>
-                <th>Zeugen</th>
+                <th>Agent</th>
                 <th>Mord/Totschlag</th>
                 <th>Zeitstempel</th>
-                <th>Officer</th>
+                <th>Erfasst von</th>
+                ${canDelete ? "<th>Aktionen</th>" : ""}
               </tr>
             </thead>
             <tbody>
@@ -6314,9 +6336,7 @@ function renderSeizures() {
                 <tr>
                   <td><strong>${escapeHtml(item.suspect || "-")}</strong></td>
                   <td>${escapeHtml(item.location || "-")}</td>
-                  <td>${escapeHtml(item.weapons || "-")}</td>
-                  <td>${escapeHtml(item.drugs || "-")}</td>
-                  <td>${escapeHtml(item.other || "-")}</td>
+                  <td>${renderEvidenceLinks(item)}</td>
                   <td>${formatMoney(item.blackMoney)}</td>
                   <td>${Number(item.crates || 0) || "-"}</td>
                   <td><span class="seizure-pill ${item.sourceType === "Dealer" ? "dealer" : "normal"}">${escapeHtml(item.sourceType || "Normal")}</span></td>
@@ -6324,8 +6344,9 @@ function renderSeizures() {
                   <td><span class="seizure-pill ${item.murder ? "yes" : "no"}">${item.murder ? "Ja" : "Nein"}</span></td>
                   <td>${formatDateTime(item.createdAt)}</td>
                   <td>${escapeHtml(item.officerName || "-")}</td>
+                  ${canDelete ? `<td><button class="mini-icon delete-seizure" data-id="${escapeHtml(item.id)}" title="Löschen">${actionIcon("delete")}</button></td>` : ""}
                 </tr>
-              `).join("") || `<tr><td colspan="12" class="empty-table">Keine Beschlagnahmungen gefunden.</td></tr>`}
+              `).join("") || `<tr><td colspan="${canDelete ? 11 : 10}" class="empty-table">Keine Beschlagnahmungen gefunden.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -6334,7 +6355,11 @@ function renderSeizures() {
   `;
 
   $("#addSeizureBtn")?.addEventListener("click", () => openSeizureModal());
-  $("#refreshSeizures")?.addEventListener("click", () => bootstrap());
+  $("#seizureStatRange")?.addEventListener("change", (event) => {
+    localStorage.setItem("fib_seizure_stat_range", event.target.value);
+    renderSeizures();
+  });
+  document.querySelectorAll(".delete-seizure").forEach((button) => button.addEventListener("click", () => openDeleteSeizureModal(button.dataset.id)));
   $("#runSeizureSearch")?.addEventListener("click", () => {
     localStorage.setItem("fib_seizure_search", $("#seizureSearch").value);
     renderSeizures();
@@ -6349,6 +6374,31 @@ function renderSeizures() {
   });
 }
 
+function openDeleteSeizureModal(id) {
+  const item = seizureItems().find((entry) => entry.id === id);
+  if (!item || !hasRole("Direktion")) return;
+  openModal(`
+    <h3>Beschlagnahmung löschen</h3>
+    <p class="muted">Eintrag von <strong>${escapeHtml(item.suspect || "-")}</strong> wirklich löschen?</p>
+    <p id="modalError" class="form-error"></p>
+    <div class="modal-actions">
+      <button class="ghost-btn" data-close>Abbrechen</button>
+      <button class="red-btn" id="confirmDeleteSeizure">Löschen</button>
+    </div>
+  `, (modal) => {
+    modal.querySelector("#confirmDeleteSeizure").addEventListener("click", async () => {
+      try {
+        const data = await api(`/api/seizures/${id}`, { method: "DELETE" });
+        state.settings = data.settings || { ...state.settings, seizures: (state.settings.seizures || []).filter((entry) => entry.id !== id) };
+        closeModal();
+        renderSeizures();
+      } catch (error) {
+        $("#modalError").textContent = error.message;
+      }
+    });
+  });
+}
+
 function openSeizureModal() {
   const witnessOptions = state.users
     .filter((user) => !user.terminated)
@@ -6360,9 +6410,13 @@ function openSeizureModal() {
     <div class="seizure-modal-grid">
       <label>Tatverdächtiger <b>*</b><input id="seizureSuspect" placeholder="Name des Tatverdächtigen" required></label>
       <label>Standort <b>*</b><input id="seizureLocation" placeholder="Ort der Beschlagnahmung" required></label>
-      <label class="full">Waffen<textarea id="seizureWeapons" placeholder="Beschreibung der beschlagnahmten Waffen"></textarea></label>
-      <label class="full">Betäubungsmittel<textarea id="seizureDrugs" placeholder="Beschreibung der beschlagnahmten Betäubungsmittel"></textarea></label>
-      <label class="full">Sonstiges<textarea id="seizureOther" placeholder="Andere beschlagnahmte Gegenstände"></textarea></label>
+      <div class="full evidence-field">
+        <div class="field-title">Beweise</div>
+        <div id="evidenceLinkList" class="evidence-input-list">
+          <input class="evidence-link-input" placeholder="Screenshot-Link / Beweis-Link">
+        </div>
+        <button class="ghost-btn evidence-add-btn" type="button" id="addEvidenceLink">${iconSvg("Plus")} Weiteren Beweis hinzufügen</button>
+      </div>
       <label>Schwarzgeld Menge<input id="seizureBlackMoney" type="number" min="0" step="1" placeholder="0"></label>
       <label>Kisten Menge<input id="seizureCrates" type="number" min="0" step="1" placeholder="0"></label>
       <label>Art
@@ -6371,9 +6425,9 @@ function openSeizureModal() {
           <option>Dealer</option>
         </select>
       </label>
-      <label>Zeuge
+      <label>Agent
         <select id="seizureWitness">
-          <option value="">Officer als Zeuge auswählen...</option>
+          <option value="">Agent auswählen...</option>
           ${witnessOptions}
         </select>
       </label>
@@ -6390,9 +6444,7 @@ function openSeizureModal() {
           body: JSON.stringify({
             suspect: $("#seizureSuspect").value,
             location: $("#seizureLocation").value,
-            weapons: $("#seizureWeapons").value,
-            drugs: $("#seizureDrugs").value,
-            other: $("#seizureOther").value,
+            evidenceLinks: [...document.querySelectorAll(".evidence-link-input")].map((input) => input.value),
             witness: $("#seizureWitness").value,
             murder: $("#seizureMurder").checked,
             blackMoney: $("#seizureBlackMoney").value,
@@ -6406,6 +6458,14 @@ function openSeizureModal() {
       } catch (error) {
         $("#modalError").textContent = error.message;
       }
+    });
+    modal.querySelector("#addEvidenceLink").addEventListener("click", () => {
+      const row = document.createElement("div");
+      row.className = "evidence-input-row";
+      row.innerHTML = `<input class="evidence-link-input" placeholder="Weiterer Screenshot-Link / Beweis-Link"><button class="mini-icon remove-evidence-link" type="button" title="Entfernen">${actionIcon("delete")}</button>`;
+      modal.querySelector("#evidenceLinkList").appendChild(row);
+      row.querySelector(".remove-evidence-link").addEventListener("click", () => row.remove());
+      row.querySelector("input").focus();
     });
   });
 }

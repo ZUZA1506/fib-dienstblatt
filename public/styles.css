@@ -2185,20 +2185,30 @@ tr:last-child td {
   border-bottom: 0;
 }
 
-.page-action-row {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
 .seizure-page {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+}
+
+.seizure-stats-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 34px;
+  color: #b6c8e4;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.seizure-range-select {
+  width: 118px;
+  min-height: 32px;
+  padding: 5px 10px;
 }
 
 .seizure-stats .stat-card {
-  min-height: 96px;
+  min-height: 90px;
 }
 
 .seizure-panel .panel-header h3 {
@@ -2225,18 +2235,60 @@ tr:last-child td {
 }
 
 .seizure-table {
-  min-width: 1500px;
+  min-width: 1260px;
 }
 
 .seizure-table th,
 .seizure-table td {
   padding: 16px;
-  vertical-align: top;
+  vertical-align: middle;
   line-height: 1.45;
 }
 
 .seizure-table td {
   color: #eef5ff;
+}
+
+.evidence-link-list {
+  display: grid;
+  gap: 6px;
+}
+
+.evidence-link-list a,
+.evidence-link-list span {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 260px;
+  overflow: hidden;
+  color: #93c5fd;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-field {
+  display: grid;
+  gap: 10px;
+}
+
+.field-title {
+  color: #d5e4ff;
+  font-weight: 900;
+}
+
+.evidence-input-list {
+  display: grid;
+  gap: 10px;
+}
+
+.evidence-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.evidence-add-btn {
+  justify-self: flex-start;
 }
 
 .empty-table {
@@ -2321,6 +2373,8 @@ tr:last-child td {
 
 .seizure-checkbox {
   align-self: end;
+  justify-content: flex-start;
+  gap: 8px;
   min-height: 44px;
 }
 
@@ -5565,6 +5619,10 @@ table td.text-left {
   .seizure-modal-grid,
   .seizure-search-row {
     grid-template-columns: 1fr;
+  }
+
+  .seizure-stats-head {
+    justify-content: flex-start;
   }
 
   .it-layout,

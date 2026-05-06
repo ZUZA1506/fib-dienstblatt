@@ -1431,13 +1431,17 @@ app.post("/api/seizures", requireAuth, (req, res) => {
   }
   const numberValue = (value) => Math.max(0, Number(value || 0) || 0);
   const sourceType = String(req.body.sourceType || "Normal").trim() === "Dealer" ? "Dealer" : "Normal";
+  const evidenceLinks = Array.isArray(req.body.evidenceLinks)
+    ? req.body.evidenceLinks.map((item) => String(item || "").trim()).filter(Boolean)
+    : String(req.body.evidenceLink || req.body.weapons || "").split("\n").map((item) => item.trim()).filter(Boolean);
   const entry = {
     id: makeId("seizure"),
     suspect,
     location,
-    weapons: String(req.body.weapons || "").trim(),
-    drugs: String(req.body.drugs || "").trim(),
-    other: String(req.body.other || "").trim(),
+    evidenceLinks,
+    weapons: "",
+    drugs: "",
+    other: "",
     witness: String(req.body.witness || "").trim(),
     murder: Boolean(req.body.murder),
     blackMoney: numberValue(req.body.blackMoney),
@@ -1452,6 +1456,15 @@ app.post("/api/seizures", requireAuth, (req, res) => {
   logAction(req.db, req.user, "Beschlagnahmung erstellt", suspect, { after: entry });
   writeDb(req.db);
   res.status(201).json({ seizure: entry, settings: req.db.settings });
+});
+
+app.delete("/api/seizures/:id", requireAuth, requireRole("Direktion"), (req, res) => {
+  const entry = req.db.settings.seizures.find((item) => item.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: "Beschlagnahmung nicht gefunden." });
+  req.db.settings.seizures = req.db.settings.seizures.filter((item) => item.id !== req.params.id);
+  logAction(req.db, req.user, "Beschlagnahmung gelöscht", entry.suspect || req.params.id, { before: entry });
+  writeDb(req.db);
+  res.json({ ok: true, settings: req.db.settings });
 });
 
 app.post("/api/calendar/events", requireAuth, (req, res) => {
