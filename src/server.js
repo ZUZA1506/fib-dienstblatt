@@ -670,6 +670,22 @@ app.post("/api/logout", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/security/inspect-attempt", (req, res) => {
+  const db = readDb();
+  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  const session = db.sessions.find((item) => item.token === token);
+  const user = db.users.find((item) => item.id === session?.userId);
+  const actor = user || { firstName: "Unbekannter", lastName: "Besucher" };
+  const reason = String(req.body.reason || "Untersuchen versucht").slice(0, 120);
+  const page = String(req.body.page || "").slice(0, 80);
+  logAction(db, actor, "Untersuchen blockiert", page || "Website", {
+    reason,
+    userAgent: String(req.headers["user-agent"] || "").slice(0, 180)
+  });
+  writeDb(db);
+  res.json({ ok: true });
+});
+
 app.get("/api/bootstrap", requireAuth, (req, res) => {
   const sortedUsers = [...req.db.users].filter((user) => !user.terminated).sort((a, b) => b.rank - a.rank || a.lastName.localeCompare(b.lastName));
   const archivedUsers = [...req.db.users].filter((user) => user.terminated).sort((a, b) => new Date(b.termination?.terminatedAt || b.updatedAt || 0) - new Date(a.termination?.terminatedAt || a.updatedAt || 0));

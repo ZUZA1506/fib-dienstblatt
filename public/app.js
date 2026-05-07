@@ -23,14 +23,29 @@ function clearAuthToken() {
 
 function installInspectGuard() {
   const blocker = $("#inspectBlocker");
-  const showBlocker = () => {
+  let lastReportAt = 0;
+  const reportAttempt = (reason) => {
+    const now = Date.now();
+    if (now - lastReportAt < 2500) return;
+    lastReportAt = now;
+    fetch("/api/security/inspect-attempt", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(state.token ? { Authorization: `Bearer ${state.token}` } : {})
+      },
+      body: JSON.stringify({ reason, page: state.page || document.title })
+    }).catch(() => {});
+  };
+  const showBlocker = (reason) => {
     if (!blocker) return;
     blocker.classList.remove("hidden");
     window.setTimeout(() => blocker.classList.add("hidden"), 2200);
+    reportAttempt(reason);
   };
   document.addEventListener("contextmenu", (event) => {
     event.preventDefault();
-    showBlocker();
+    showBlocker("Rechtsklick / Kontextmenü");
   });
   document.addEventListener("keydown", (event) => {
     const key = event.key.toLowerCase();
@@ -40,7 +55,7 @@ function installInspectGuard() {
     if (!blocked) return;
     event.preventDefault();
     event.stopPropagation();
-    showBlocker();
+    showBlocker(`Tastenkürzel ${event.ctrlKey ? "Ctrl+" : ""}${event.shiftKey ? "Shift+" : ""}${event.key}`);
   }, true);
 }
 
@@ -828,6 +843,9 @@ function renderMembers() {
       </div>
     </section>
   `;
+  setupTableFilter("#membersSearch");
+  $("#membersSearch")?.addEventListener("input", (event) => localStorage.setItem("fib_members_search", event.target.value));
+  if (search) $("#membersSearch")?.dispatchEvent(new Event("input"));
 }
 
 function renderInformation() {
@@ -1879,11 +1897,11 @@ function renderIT() {
   const editablePages = editableItPages();
   const sortedRanks = [...state.ranks].sort((a, b) => b.value - a.value);
   content.innerHTML = `
-    <section class="it-dashboard-head">
-      <div class="panel it-hero-panel">
+    <section class="it-command-center">
+      <div class="panel it-hero-panel it-overview-card">
         <div>
           <h3><span class="section-icon">${iconSvg("IT")}</span>IT Verwaltung</h3>
-          <p class="muted">Reiter, Rechte, Ränge und Systemfunktionen an einem Ort.</p>
+          <p class="muted">Systemsteuerung, Rechte, Mitglieder und Ränge übersichtlich getrennt.</p>
         </div>
         <div class="it-hero-stats">
           <span><b>${editablePages.length}</b> Reiter</span>
@@ -1891,30 +1909,26 @@ function renderIT() {
           <span><b>${state.users.length}</b> Accounts</span>
         </div>
       </div>
-      <div class="it-tool-grid compact">
-        <button class="it-tool" id="exportDataBtn">
-          <strong>Datensicherung</strong>
-          <span>JSON exportieren</span>
-        </button>
-        <button class="it-tool" id="importDataBtn">
-          <strong>Datenimport</strong>
-          <span>JSON wiederherstellen</span>
-        </button>
-        <button class="it-tool" id="clearSessionsBtn">
-          <strong>Sessions</strong>
-          <span>Andere Logins abmelden</span>
-        </button>
-        <button class="it-tool ${state.settings?.devMode ? "devmode-on" : ""}" id="toggleDevModeBtn">
-          <strong>Devmode</strong>
-          <span>${state.settings?.devMode ? "Aktiv - pro Tab ein Account" : "Aus - normaler Login"}</span>
-        </button>
-        <div class="it-tool">
-          <strong>Speicher</strong>
-          <span>storage/dienstblatt.json</span>
+    </section>
+
+    <section class="it-workbench">
+      <div class="panel it-section-card it-system-card">
+        <div class="it-section-title">
+          <span>01</span>
+          <div><h3>System</h3><p class="muted">Sicherung, Import, Sessions und Devmode.</p></div>
+        </div>
+        <div class="it-action-grid">
+          <button class="it-tool" id="exportDataBtn"><strong>Datensicherung</strong><span>JSON exportieren</span></button>
+          <button class="it-tool" id="importDataBtn"><strong>Datenimport</strong><span>JSON wiederherstellen</span></button>
+          <button class="it-tool" id="clearSessionsBtn"><strong>Sessions</strong><span>Andere Logins abmelden</span></button>
+          <button class="it-tool ${state.settings?.devMode ? "devmode-on" : ""}" id="toggleDevModeBtn"><strong>Devmode</strong><span>${state.settings?.devMode ? "Aktiv - pro Tab ein Account" : "Aus - normaler Login"}</span></button>
+          <div class="it-tool passive"><strong>Speicher</strong><span>storage/dienstblatt.json</span></div>
         </div>
       </div>
-      <div class="panel it-card restart-card">
-        <div class="panel-header">
+
+      <div class="panel it-section-card it-restarts-card">
+        <div class="it-section-title">
+          <span>02</span>
           <div><h3>Restarts</h3><p class="muted">Tägliche Uhrzeiten, zu denen alle aktiven Dienste automatisch beendet werden.</p></div>
         </div>
         <div class="restart-editor">
@@ -1927,61 +1941,65 @@ function renderIT() {
           `).join("") || `<p class="muted">Noch keine Restartzeiten angelegt.</p>`}
         </div>
       </div>
-    </section>
 
-    <section class="it-layout">
-    <div class="panel it-card">
-      <div class="panel-header"><div><h3>Reiter bearbeiten</h3><p class="muted">Namen ändern und Rechte direkt pro Reiter öffnen.</p></div><button class="blue-btn" id="saveNavLabels" type="button">Speichern</button></div>
-      <div class="edit-list it-compact-list">
-        ${editablePages.map((page, index) => `
-          ${isInternalSheetPage(page) && !isInternalSheetPage(editablePages[index - 1] || "") ? `<div class="edit-section-divider"><span>Abteilungsblätter</span><small>Direktion, IT und Abteilungen mit eigenen Rechten für Ansicht, Personal, Notizen und interne Buttons.</small></div>` : ""}
-          <label class="edit-row">
-            <span class="edit-icon">${iconSvg(page)}</span>
-            <span class="edit-name">${isPageViewRestricted(page) ? `<span class="page-lock" title="Ansehen ist eingeschränkt">${iconSvg("Lock")}</span>` : ""}${escapeHtml(isDepartmentPage(page) ? navLabel(page) : page)}</span>
-            <input data-nav-key="${escapeHtml(page)}" value="${escapeHtml(navLabel(page))}">
-            <button class="mini-icon page-permission-open" type="button" data-page-key="${escapeHtml(page)}" title="Rechte verwalten" aria-label="Rechte verwalten">${actionIcon("edit")}</button>
-          </label>
-        `).join("")}
+      <div class="panel it-section-card it-pages-card">
+        <div class="it-section-title">
+          <span>03</span>
+          <div><h3>Reiter & Rechte</h3><p class="muted">Namen ändern und Rechte direkt pro Reiter öffnen.</p></div>
+          <button class="blue-btn" id="saveNavLabels" type="button">Speichern</button>
+        </div>
+        <div class="edit-list it-compact-list">
+          ${editablePages.map((page, index) => `
+            ${isInternalSheetPage(page) && !isInternalSheetPage(editablePages[index - 1] || "") ? `<div class="edit-section-divider"><span>Abteilungsblätter</span><small>Direktion, IT und Abteilungen mit eigenen Rechten für Ansicht, Personal, Notizen und interne Buttons.</small></div>` : ""}
+            <label class="edit-row">
+              <span class="edit-icon">${iconSvg(page)}</span>
+              <span class="edit-name">${isPageViewRestricted(page) ? `<span class="page-lock" title="Ansehen ist eingeschränkt">${iconSvg("Lock")}</span>` : ""}${escapeHtml(isDepartmentPage(page) ? navLabel(page) : page)}</span>
+              <input data-nav-key="${escapeHtml(page)}" value="${escapeHtml(navLabel(page))}">
+              <button class="mini-icon page-permission-open" type="button" data-page-key="${escapeHtml(page)}" title="Rechte verwalten" aria-label="Rechte verwalten">${actionIcon("edit")}</button>
+            </label>
+          `).join("")}
+        </div>
+        <p id="navSaveMessage" class="muted"></p>
       </div>
-      <p id="navSaveMessage" class="muted"></p>
-    </div>
 
-    <div class="panel it-card">
-      <div class="panel-header">
-        <div><h3>Mitglieder verwalten</h3><p class="muted">Accounts, Ränge und IT-Zugänge direkt im IT-Blatt bearbeiten.</p></div>
-        <button class="blue-btn" id="itCreateMember" type="button">Neues Mitglied einstellen</button>
-      </div>
-      <div class="it-member-list">
-        ${state.users.map((user) => `
-          <div class="it-member-row">
-            <span>${avatarMarkup(user, "sm")}<span><strong>${escapeHtml(fullName(user))}</strong><small>DN ${escapeHtml(user.dn || "-")} · ${escapeHtml(rankLabel(user.rank))}</small></span></span>
-            <span class="it-member-roles">${roleBadges(user)}</span>
-            <button class="mini-icon it-edit-member" type="button" data-user-id="${escapeHtml(user.id)}" title="Mitglied bearbeiten">${actionIcon("edit")}</button>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-
-    <div class="panel it-card">
-      <div class="panel-header">
-        <h3>Ränge bearbeiten</h3>
-        <div class="button-row">
-        <button class="ghost-btn" id="addRank" type="button">Rang hinzufügen</button>
-        <button class="red-btn" id="removeRank" type="button">Rang entfernen</button>
-        <button class="blue-btn" id="saveRanks" type="button">Speichern</button>
+      <div class="panel it-section-card it-members-card">
+        <div class="it-section-title">
+          <span>04</span>
+          <div><h3>Mitglieder</h3><p class="muted">Accounts, Ränge und IT-Zugänge direkt im IT-Blatt bearbeiten.</p></div>
+          <button class="blue-btn" id="itCreateMember" type="button">Neues Mitglied einstellen</button>
+        </div>
+        <div class="it-member-list">
+          ${state.users.map((user) => `
+            <div class="it-member-row">
+              <span>${avatarMarkup(user, "sm")}<span><strong>${escapeHtml(fullName(user))}</strong><small>DN ${escapeHtml(user.dn || "-")} · ${escapeHtml(rankLabel(user.rank))}</small></span></span>
+              <span class="it-member-roles">${roleBadges(user)}</span>
+              <button class="mini-icon it-edit-member" type="button" data-user-id="${escapeHtml(user.id)}" title="Mitglied bearbeiten">${actionIcon("edit")}</button>
+            </div>
+          `).join("")}
         </div>
       </div>
-      <div class="edit-list rank-edit-list it-compact-list">
-        ${sortedRanks.map((rank) => `
-          <label class="edit-row">
-            <span class="rank-number">Rang ${rank.value}</span>
-            <input data-rank-value="${rank.value}" value="${escapeHtml(rank.label)}">
-            <span class="edit-pencil">${actionIcon("edit")}</span>
-          </label>
-        `).join("")}
+
+      <div class="panel it-section-card it-ranks-card">
+        <div class="it-section-title">
+          <span>05</span>
+          <div><h3>Ränge</h3><p class="muted">Rangnamen bearbeiten, hinzufügen oder entfernen.</p></div>
+          <div class="button-row">
+            <button class="ghost-btn" id="addRank" type="button">Rang hinzufügen</button>
+            <button class="red-btn" id="removeRank" type="button">Rang entfernen</button>
+            <button class="blue-btn" id="saveRanks" type="button">Speichern</button>
+          </div>
+        </div>
+        <div class="edit-list rank-edit-list it-compact-list">
+          ${sortedRanks.map((rank) => `
+            <label class="edit-row">
+              <span class="rank-number">Rang ${rank.value}</span>
+              <input data-rank-value="${rank.value}" value="${escapeHtml(rank.label)}">
+              <span class="edit-pencil">${actionIcon("edit")}</span>
+            </label>
+          `).join("")}
+        </div>
+        <p id="rankSaveMessage" class="muted"></p>
       </div>
-      <p id="rankSaveMessage" class="muted"></p>
-    </div>
     </section>
 
   `;
@@ -5776,8 +5794,8 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
     modal.classList.add("wide-doc-modal");
     let editMode = false;
     let savedDocSelection = null;
-    const initial = sanitizeInformationHtml(editorHtml);
     const editor = () => modal.querySelector("#paperDocEditor");
+    const initial = sanitizeInformationHtml(editor()?.innerHTML || editorHtml);
     const saveDocSelection = () => {
       const selection = window.getSelection();
       const currentEditor = editor();
@@ -5833,6 +5851,10 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
     modal.querySelector("#saveDocFromEditor")?.addEventListener("click", () => {
       const title = modal.querySelector("#paperDocTitle")?.value.trim() || doc.title;
       const current = sanitizeInformationHtml(editor()?.innerHTML || "");
+      if (current === initial && title === doc.title) {
+        showNotify("Keine Änderungen vorhanden.", "info");
+        return;
+      }
       openInformationDocCloseConfirm(doc, title, initial, current);
     });
     if (focusChangeId) window.setTimeout(() => openInformationDocChangelog(doc.id, focusChangeId), 50);
@@ -6411,9 +6433,6 @@ function renderTemplate(page) {
       <p class="muted">Template-Seite. Die Funktionen können hier als nächstes erweitert werden.</p>
     </section>
   `;
-  setupTableFilter("#membersSearch");
-  $("#membersSearch")?.addEventListener("input", (event) => localStorage.setItem("fib_members_search", event.target.value));
-  if (search) $("#membersSearch")?.dispatchEvent(new Event("input"));
 }
 
 function seizureItems() {
@@ -6909,9 +6928,11 @@ function setupTableFilter(selector) {
   const input = $(selector);
   if (!input) return;
   input.addEventListener("input", () => {
-    const term = input.value.toLowerCase();
+    const term = input.value.toLowerCase().trim();
     document.querySelectorAll(".filterable-row").forEach((row) => {
-      row.classList.toggle("hidden", !row.textContent.toLowerCase().includes(term));
+      const matches = !term || row.textContent.toLowerCase().includes(term);
+      row.classList.toggle("hidden", !matches);
+      row.classList.toggle("search-match", Boolean(term && matches));
     });
   });
 }

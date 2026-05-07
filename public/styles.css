@@ -3448,6 +3448,82 @@ table td.text-left {
   overflow: hidden;
 }
 
+.it-command-center {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.it-overview-card {
+  min-height: 112px;
+  border-color: rgba(96, 165, 250, .28);
+  background:
+    linear-gradient(135deg, rgba(47, 109, 246, .16), transparent 45%),
+    #101827;
+}
+
+.it-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  grid-template-areas:
+    "system restarts"
+    "pages members"
+    "pages ranks";
+  gap: 14px;
+}
+
+.it-section-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  overflow: visible;
+}
+
+.it-system-card { grid-area: system; }
+.it-restarts-card { grid-area: restarts; }
+.it-pages-card { grid-area: pages; }
+.it-members-card { grid-area: members; }
+.it-ranks-card { grid-area: ranks; }
+
+.it-section-title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.it-section-title > span:first-child {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(96, 165, 250, .28);
+  border-radius: 10px;
+  color: #7db4ff;
+  background: rgba(47, 109, 246, .12);
+  font-weight: 900;
+}
+
+.it-section-title h3,
+.it-section-title p {
+  margin: 0;
+}
+
+.it-section-title .button-row {
+  justify-content: flex-end;
+}
+
+.it-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.it-tool.passive {
+  cursor: default;
+}
+
 .it-compact-list {
   max-height: none;
   overflow: visible;
@@ -6071,6 +6147,12 @@ table td.text-left {
   background: rgba(255, 255, 255, .05);
 }
 
+.filterable-row.search-match {
+  outline: 1px solid rgba(34, 197, 94, .46);
+  outline-offset: -1px;
+  background: rgba(34, 197, 94, .08);
+}
+
 @media (max-width: 860px) {
   .login-stage {
     grid-template-columns: 1fr;
@@ -6079,6 +6161,26 @@ table td.text-left {
   .login-intro {
     min-height: auto;
     padding: 30px;
+  }
+
+  .it-workbench {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "system"
+      "restarts"
+      "pages"
+      "members"
+      "ranks";
+  }
+
+  .it-section-title {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .it-section-title > .button-row,
+  .it-section-title > button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 
