@@ -167,7 +167,9 @@ function ensureStorage() {
       uprankRules: defaultUprankRules(),
       uprankAdjustments: [],
       permissions: defaultPermissions(),
-      devMode: false
+      devMode: false,
+      restartTimes: [],
+      restartLastRun: {}
     },
     notes: [],
     duty: [],
@@ -209,6 +211,8 @@ function readDb() {
   db.settings.uprankAdjustments = Array.isArray(db.settings.uprankAdjustments) ? db.settings.uprankAdjustments : [];
   db.settings.permissions = normalizePermissions(db.settings.permissions);
   db.settings.devMode = Boolean(db.settings.devMode);
+  db.settings.restartTimes = Array.isArray(db.settings.restartTimes) ? db.settings.restartTimes : [];
+  db.settings.restartLastRun = db.settings.restartLastRun && typeof db.settings.restartLastRun === "object" ? db.settings.restartLastRun : {};
   db.settings.informationRightsText = String(db.settings.informationRightsText || "");
   db.settings.informationLinks = Array.isArray(db.settings.informationLinks) ? db.settings.informationLinks : [];
   db.settings.informationDocs = Array.isArray(db.settings.informationDocs) ? db.settings.informationDocs : [];
@@ -1139,6 +1143,18 @@ app.patch("/api/it/devmode", requireAuth, requireRole("IT"), (req, res) => {
   res.json({ settings: req.db.settings });
 });
 
+app.patch("/api/it/restarts", requireAuth, requireRole("IT"), (req, res) => {
+  const before = req.db.settings.restartTimes || [];
+  const restartTimes = Array.isArray(req.body.restartTimes) ? req.body.restartTimes : [];
+  req.db.settings.restartTimes = [...new Set(restartTimes
+    .map((time) => String(time || "").trim())
+    .filter((time) => /^\d{2}:\d{2}$/.test(time)))]
+    .sort();
+  logAction(req.db, req.user, "Restartzeiten geändert", "IT", { before, after: req.db.settings.restartTimes });
+  writeDb(req.db);
+  res.json({ settings: req.db.settings });
+});
+
 app.get("/api/it/export", requireAuth, requireRole("IT"), (req, res) => {
   const exportDb = { ...req.db, sessions: [] };
   res.setHeader("Content-Type", "application/json");
@@ -1494,6 +1510,19 @@ app.delete("/api/duty/history/:id", requireAuth, requirePermission("actions", "m
   res.json({ ok: true });
 });
 
+function endAllActiveDuty(db, actor, action = "Alle Dienste beendet") {
+  const endedAt = nowIso();
+  db.duty.forEach((active) => {
+    const history = db.dutyHistory.find((entry) => entry.id === active.id) || db.dutyHistory.find((entry) => entry.userId === active.userId && !entry.endedAt);
+    if (history) history.endedAt = endedAt;
+    else db.dutyHistory.push({ ...active, endedAt, manual: false });
+  });
+  const count = db.duty.length;
+  logAction(db, actor, action, "Dienstblatt", { count });
+  db.duty = [];
+  return count;
+}
+
 app.post("/api/seizures", requireAuth, (req, res) => {
   const suspect = String(req.body.suspect || "").trim();
   const location = String(req.body.location || "").trim();
@@ -1647,7 +1676,43 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
+function currentBerlinRestartWindow() {
+  const parts = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(new Date()).reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`
+  };
+}
+
+function runScheduledRestarts() {
+  try {
+    const db = readDb();
+    const times = db.settings.restartTimes || [];
+    if (!times.length) return;
+    const { date, time } = currentBerlinRestartWindow();
+    if (!times.includes(time)) return;
+    db.settings.restartLastRun = db.settings.restartLastRun || {};
+    if (db.settings.restartLastRun[time] === date) return;
+    const count = endAllActiveDuty(db, { firstName: "System", lastName: "Restart" }, "Restart: Dienste automatisch beendet");
+    db.settings.restartLastRun[time] = date;
+    if (count > 0) writeDb(db);
+    else writeDb(db);
+  } catch (error) {
+    console.error("Restart scheduler failed:", error);
+  }
+}
+
 ensureStorage();
+runScheduledRestarts();
+setInterval(runScheduledRestarts, 30000);
 app.listen(PORT, () => {
   console.log(`FIB Dienstblatt laeuft auf http://localhost:${PORT}`);
 });

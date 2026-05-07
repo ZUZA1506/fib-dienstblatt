@@ -21,6 +21,29 @@ function clearAuthToken() {
   else localStorage.removeItem("fib_token");
 }
 
+function installInspectGuard() {
+  const blocker = $("#inspectBlocker");
+  const showBlocker = () => {
+    if (!blocker) return;
+    blocker.classList.remove("hidden");
+    window.setTimeout(() => blocker.classList.add("hidden"), 2200);
+  };
+  document.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showBlocker();
+  });
+  document.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    const blocked = event.key === "F12"
+      || (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key))
+      || (event.ctrlKey && ["u", "s"].includes(key));
+    if (!blocked) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showBlocker();
+  }, true);
+}
+
 const state = {
   token: storedAuthToken(),
   currentUser: null,
@@ -762,11 +785,15 @@ function statusClass(status) {
 
 function renderMembers() {
   const rows = [...state.users].sort((a, b) => b.rank - a.rank || a.lastName.localeCompare(b.lastName));
+  const search = localStorage.getItem("fib_members_search") || "";
   content.innerHTML = `
     <section class="panel">
       <div class="panel-header">
         <h3>Mitglieder</h3>
         <span class="muted">${rows.length} Einträge</span>
+      </div>
+      <div class="filter-row members-search-row">
+        <input id="membersSearch" value="${escapeHtml(search)}" placeholder="Mitglied, DN, Rang oder Ausbildung suchen">
       </div>
       <div class="table-wrap">
         <table class="members-table">
@@ -783,7 +810,7 @@ function renderMembers() {
           </thead>
           <tbody>
             ${rows.map((user) => `
-              <tr class="${user.id === state.currentUser?.id ? "member-row-self" : ""}">
+              <tr class="filterable-row ${user.id === state.currentUser?.id ? "member-row-self" : ""}">
                 <td class="member-name-col text-left"><span class="member-name member-name-wrap">${avatarMarkup(user, "sm")}<span>${wrapNameForTable(fullName(user))}</span></span></td>
                 <td class="text-center">${escapeHtml(user.phone)}</td>
                 <td class="text-left">${escapeHtml(user.dn)}</td>
@@ -1886,6 +1913,20 @@ function renderIT() {
           <span>storage/dienstblatt.json</span>
         </div>
       </div>
+      <div class="panel it-card restart-card">
+        <div class="panel-header">
+          <div><h3>Restarts</h3><p class="muted">Tägliche Uhrzeiten, zu denen alle aktiven Dienste automatisch beendet werden.</p></div>
+        </div>
+        <div class="restart-editor">
+          <input id="restartTimeInput" type="time" value="00:00">
+          <button class="blue-btn" id="addRestartTime" type="button">Restartzeit hinzufügen</button>
+        </div>
+        <div class="restart-list">
+          ${(state.settings.restartTimes || []).map((time) => `
+            <span class="restart-chip"><b>${escapeHtml(time)}</b><button class="mini-icon delete-restart-time" type="button" data-time="${escapeHtml(time)}" title="Löschen">${actionIcon("delete")}</button></span>
+          `).join("") || `<p class="muted">Noch keine Restartzeiten angelegt.</p>`}
+        </div>
+      </div>
     </section>
 
     <section class="it-layout">
@@ -2014,6 +2055,19 @@ function renderIT() {
     syncDevModeAuthStorage();
     renderApp();
   });
+  $("#addRestartTime")?.addEventListener("click", () => saveRestartTimes([...(state.settings.restartTimes || []), $("#restartTimeInput").value]));
+  document.querySelectorAll(".delete-restart-time").forEach((button) => {
+    button.addEventListener("click", () => saveRestartTimes((state.settings.restartTimes || []).filter((time) => time !== button.dataset.time)));
+  });
+}
+
+async function saveRestartTimes(times) {
+  const data = await api("/api/it/restarts", {
+    method: "PATCH",
+    body: JSON.stringify({ restartTimes: Array.from(new Set(times.filter(Boolean))).sort() })
+  });
+  state.settings = data.settings;
+  renderIT();
 }
 
 function openDataImportModal() {
@@ -4703,7 +4757,12 @@ async function saveInformationDocDirect(doc, title, body, closeAfter = false) {
     acknowledgedBy: []
   }, ...(state.settings.informationDocChanges || [])];
   await saveInformationPatch({ informationDocs: upsertById(informationDocs(), nextDoc), informationDocChanges: changes });
-  if (!closeAfter) openInformationDocView(nextDoc.id);
+  if (closeAfter) {
+    closeModal();
+    renderInformation();
+  } else {
+    openInformationDocView(nextDoc.id);
+  }
 }
 
 function openInformationDocCloseConfirm(doc, title, before, after) {
@@ -5263,7 +5322,7 @@ function renderInformation() {
   const factions = state.settings.informationFactions || [];
   content.innerHTML = `
     <section class="department-info-view information-admin-view modern-info-view">
-      <div class="info-box full information-card internal-doc-card"><div class="department-modal-heading"><h4>Vorschriften</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn add-doc-button" id="addInformationDoc">${iconSvg("Plus")} Neue Vorschrift hinzufügen</button>` : ""}</div><div class="internal-doc-grid">${docs.map((doc) => `<button class="internal-doc-tile" data-doc-id="${escapeHtml(doc.id)}"><strong>${escapeHtml(doc.title)}</strong><small>Zuletzt geändert: ${formatDateTime(doc.updatedAt)}</small></button>`).join("")}</div></div>
+      <div class="info-box full information-card internal-doc-card"><div class="department-modal-heading"><h4>Vorschriften</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn add-doc-button" id="addInformationDoc">${iconSvg("Plus")} Neue Vorschrift hinzufügen</button>` : ""}</div><div class="internal-doc-grid">${docs.map((doc) => `<article class="internal-doc-tile-wrap"><button class="internal-doc-tile" data-doc-id="${escapeHtml(doc.id)}"><strong>${escapeHtml(doc.title)}</strong><small>Zuletzt geändert: ${formatDateTime(doc.updatedAt)}</small></button>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="mini-icon danger delete-info-doc" type="button" data-id="${escapeHtml(doc.id)}" title="Vorschrift löschen">${actionIcon("delete")}</button>` : ""}</article>`).join("")}</div></div>
       <div class="info-box full information-card redirects-card"><div class="department-modal-heading"><h4>Link Weiterleitungen</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="addInformationLink">${iconSvg("Plus")} Hinzufügen</button>` : ""}</div><div class="link-card-grid">${links.map((link) => `<article class="small-link-card"><strong>${escapeHtml(link.title)}</strong><span class="link-label">Link:</span><a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.url)}</a>${canAccess("actions", "manageInformation", "Direktion") ? `<span class="button-row"><button class="blue-btn compact-action edit-info-link" data-id="${link.id}" title="Bearbeiten">${actionIcon("edit")} Bearbeiten</button><button class="mini-icon danger delete-info-link" data-id="${link.id}" title="Löschen">${actionIcon("delete")}</button></span>` : ""}</article>`).join("") || `<p class="muted">Noch keine Weiterleitungen.</p>`}</div></div>
       <div class="info-box full information-card"><div class="department-modal-heading"><h4>Rechte Definition</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="editInformationRights">${actionIcon("edit")} Bearbeiten</button>` : ""}</div><div class="rich-text-view">${formatDepartmentText(state.settings.informationRightsText)}</div></div>
       <div class="info-box full information-card"><div class="department-modal-heading"><h4>Sondergenehmigungen</h4>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="blue-btn" id="addInformationPermit">${iconSvg("Plus")} Hinzufügen</button>` : ""}</div><div class="table-wrap compact-table"><table><thead><tr><th>Vor- und Nachname</th><th>Beschreibung</th><th>Gültig Bis</th><th>Aktionen</th></tr></thead><tbody>${permits.map((permit) => `<tr><td>${escapeHtml(permit.name)}</td><td>${escapeHtml(permit.description)}</td><td>${formatDate(permit.validUntil)}</td><td>${canAccess("actions", "manageInformation", "Direktion") ? `<button class="mini-icon edit-info-permit" data-id="${permit.id}">${actionIcon("edit")}</button><button class="mini-icon danger delete-info-permit" data-id="${permit.id}">${actionIcon("delete")}</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">Keine Sondergenehmigungen.</td></tr>`}</tbody></table></div></div>
@@ -5283,6 +5342,37 @@ function renderInformation() {
   document.querySelectorAll(".edit-info-faction").forEach((button) => button.addEventListener("click", () => openInformationFactionModal(factions.find((item) => item.id === button.dataset.id))));
   document.querySelectorAll(".delete-info-faction").forEach((button) => button.addEventListener("click", () => deleteInformationItem("informationFactions", button.dataset.id)));
   document.querySelectorAll(".internal-doc-tile").forEach((button) => button.addEventListener("click", () => openInformationDocView(button.dataset.docId)));
+  document.querySelectorAll(".delete-info-doc").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openDeleteInformationDocConfirm(button.dataset.id);
+  }));
+}
+
+function openDeleteInformationDocConfirm(docId) {
+  const doc = informationDocs().find((item) => item.id === docId);
+  if (!doc || !canAccess("actions", "manageInformation", "Direktion")) return;
+  openModal(`
+    <h3>Vorschrift löschen?</h3>
+    <p class="muted">Die Vorschrift <strong>${escapeHtml(doc.title)}</strong> wird dauerhaft entfernt.</p>
+    <p id="modalError" class="form-error"></p>
+    <div class="modal-actions">
+      <button class="ghost-btn" data-close>Abbrechen</button>
+      <button class="red-btn" id="confirmDeleteInfoDoc">Löschen</button>
+    </div>
+  `, (modal) => {
+    modal.querySelector("#confirmDeleteInfoDoc").addEventListener("click", async () => {
+      try {
+        await saveInformationPatch({
+          informationDocs: informationDocs().filter((item) => item.id !== docId),
+          informationDocChanges: (state.settings.informationDocChanges || []).filter((change) => change.docId !== docId)
+        });
+        closeModal();
+        renderInformation();
+      } catch (error) {
+        modal.querySelector("#modalError").textContent = error.message;
+      }
+    });
+  });
 }
 
 async function deleteInformationDocChange(changeId, docId) {
@@ -5460,7 +5550,12 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
     modal.querySelector("#saveDocFromEditor")?.addEventListener("click", async () => {
       try {
         const title = modal.querySelector("#paperDocTitle")?.value.trim() || doc.title;
-        await saveInformationDocDirect(doc, title, editor()?.value || "", false);
+        const current = editor()?.value || "";
+        if (current === initial && title === doc.title) {
+          showNotify("Keine Änderungen vorhanden.", "info");
+          return;
+        }
+        openInformationDocCloseConfirm(doc, title, initial, current);
       } catch (error) {
         showNotify(error.message, "error");
       }
@@ -5470,12 +5565,7 @@ function openInformationDocView(docId, draft = null, focusChangeId = "") {
     if (x && canEdit) {
       const clone = x.cloneNode(true);
       x.replaceWith(clone);
-      clone.addEventListener("click", () => {
-        const title = modal.querySelector("#paperDocTitle")?.value.trim() || doc.title;
-        const current = editor()?.value || initial;
-        if (current !== initial || title !== doc.title) openInformationDocCloseConfirm(doc, title, initial, current);
-        else closeModal();
-      });
+      clone.addEventListener("click", closeModal);
     }
     modal.querySelector("#docSearchInput")?.addEventListener("input", (event) => {
       const term = event.target.value.trim();
@@ -6067,7 +6157,7 @@ function renderProfileTrainingPanel(user) {
     `;
   };
   return `
-    <div class="panel-header"><h3>Ausbildung</h3><span class="muted">Nach Ausbildungsreihenfolge sortiert</span></div>
+    <div class="panel-header"><h3>Ausbildung</h3></div>
     <div class="profile-training-group-grid">
       ${trainingGroups.map((group, index) => `
         <section class="profile-training-group">
@@ -6321,6 +6411,9 @@ function renderTemplate(page) {
       <p class="muted">Template-Seite. Die Funktionen können hier als nächstes erweitert werden.</p>
     </section>
   `;
+  setupTableFilter("#membersSearch");
+  $("#membersSearch")?.addEventListener("input", (event) => localStorage.setItem("fib_members_search", event.target.value));
+  if (search) $("#membersSearch")?.dispatchEvent(new Event("input"));
 }
 
 function seizureItems() {
@@ -6824,7 +6917,7 @@ function setupTableFilter(selector) {
 }
 
 function openModal(html, onReady) {
-  modalRoot.innerHTML = `<div class="modal"><button class="modal-x" type="button" data-close aria-label="Schließen">X</button>${html}</div>`;
+  modalRoot.innerHTML = `<div class="modal"><button class="modal-x" type="button" data-close aria-label="Schließen">×</button>${html}</div>`;
   modalRoot.classList.remove("hidden");
   document.removeEventListener("keydown", handleModalEscape);
   document.addEventListener("keydown", handleModalEscape);
@@ -6944,10 +7037,10 @@ function openStartDutyModal() {
     </div>
   `, (modal) => {
     modal.classList.add("duty-modal");
-    modal.querySelectorAll(".choice-card").forEach((button) => {
+    modal.querySelectorAll(".duty-choice-card").forEach((button) => {
       button.addEventListener("click", () => {
         selected = button.dataset.status;
-        modal.querySelectorAll(".choice-card").forEach((item) => item.classList.remove("active"));
+        modal.querySelectorAll(".duty-choice-card").forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
         $("#confirmDuty").disabled = false;
       });
@@ -6991,9 +7084,9 @@ function openSwitchDutyModal() {
     </div>
   `, (modal) => {
     modal.classList.add("duty-modal");
-    modal.querySelectorAll(".choice-card").forEach((button) => button.addEventListener("click", () => {
+    modal.querySelectorAll(".duty-choice-card").forEach((button) => button.addEventListener("click", () => {
       selected = button.dataset.status;
-      modal.querySelectorAll(".choice-card").forEach((item) => item.classList.toggle("active", item === button));
+      modal.querySelectorAll(".duty-choice-card").forEach((item) => item.classList.toggle("active", item === button));
       $("#confirmSwitchDuty").disabled = false;
     }));
     modal.querySelector("#confirmSwitchDuty").addEventListener("click", async () => {
@@ -8195,6 +8288,8 @@ async function logout() {
 }
 
 $("#logoutBtn")?.addEventListener("click", logout);
+
+installInspectGuard();
 
 document.addEventListener("click", (event) => {
   document.querySelectorAll(".exam-user-picker.open").forEach((picker) => {

@@ -20,22 +20,37 @@
     </div>
 
     <div id="loginView" class="login-shell hidden">
-      <form id="loginForm" class="login-panel">
-        <div>
-          <p class="eyebrow">FIB Intern</p>
+      <section class="login-stage">
+        <div class="login-intro">
+          <img src="/fib-logo.jpg?v=20260429-10" alt="FIB">
+          <p class="eyebrow">Federal Investigation Bureau</p>
           <h1>FIB Dienstblatt</h1>
+          <p>Interne Verwaltung, Dienstzeiten, Abteilungen und Einsatzinformationen an einem zentralen Ort.</p>
+          <div class="login-trust-row">
+            <span>Geschützter Zugang</span>
+            <span>Live Dienststatus</span>
+            <span>Interne Akten</span>
+          </div>
         </div>
-        <label>
-          Name
-          <input id="loginName" autocomplete="username" placeholder="Vorname Nachname-Doppelname" required>
-        </label>
-        <label>
-          Passwort
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Passwort" required>
-        </label>
-        <button type="submit" class="primary-btn">Einloggen</button>
-        <p id="loginError" class="form-error"></p>
-      </form>
+        <form id="loginForm" class="login-panel">
+          <div>
+            <p class="eyebrow">Anmeldung</p>
+            <h2>Willkommen zurück</h2>
+            <span>Bitte melde dich mit deinem Dienstblatt-Account an.</span>
+          </div>
+          <label>
+            Name
+            <input id="loginName" autocomplete="username" placeholder="Vorname Nachname-Doppelname" required>
+          </label>
+          <label>
+            Passwort
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Passwort" required>
+          </label>
+          <button type="submit" class="primary-btn">Einloggen</button>
+          <p id="loginError" class="form-error"></p>
+          <footer>© 2026 FIB Dienstblatt · Mit Liebe gemacht von Daniel</footer>
+        </form>
+      </section>
     </div>
 
     <div id="appView" class="app-shell hidden">
@@ -72,6 +87,13 @@
 
     <div id="notifyRoot" class="notify-root" aria-live="polite" aria-atomic="true"></div>
     <div id="modalRoot" class="modal-root hidden"></div>
+    <div id="inspectBlocker" class="inspect-blocker hidden">
+      <div>
+        <img src="/fib-logo.jpg?v=20260429-10" alt="FIB">
+        <strong>Zugriff blockiert</strong>
+        <p>Die Seitenuntersuchung ist im Dienstblatt deaktiviert.</p>
+      </div>
+    </div>
     <script src="/app.js?v=20260503-3"></script>
   </body>
 </html>
