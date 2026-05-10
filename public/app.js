@@ -2567,6 +2567,7 @@ function defaultTrainingQuestion(prompt, type = "manual", maxPoints = 1) {
     image: "",
     scenarioInfo: "",
     fileAction: "",
+    stationType: "",
     targetSeconds: 0,
     timeSeconds: 0,
     maxPoints
@@ -2622,9 +2623,10 @@ function normalizeTrainingStore(store) {
         image: question.image || "",
         scenarioInfo: question.scenarioInfo || "",
         fileAction: question.fileAction || "",
+        stationType: question.stationType || (module.id === "est-heli" && /dach|landung|combat/i.test(question.prompt || "") ? "combat" : module.id === "est-heli" ? "route" : ""),
         targetSeconds: Number(question.targetSeconds || 0),
         timeSeconds: Number(question.timeSeconds || 0),
-        maxPoints: ["est-drive", "est-heli"].includes(module.id) ? Math.min(10, Math.max(1, Number(question.maxPoints || 10))) : Math.min(10, Math.max(0.5, Number(question.maxPoints || 1))),
+        maxPoints: module.id === "est-location" ? 1 : ["est-drive", "est-heli"].includes(module.id) ? Math.min(10, Math.max(1, Number(question.maxPoints || 10))) : Math.min(10, Math.max(0.5, Number(question.maxPoints || 1))),
         penaltyPoints: 0,
         questionPenalty: false
       }))
@@ -3154,7 +3156,7 @@ function renderTrainingModuleAdmin(bank, module, editableModule) {
       <div class="training-question-admin-list">
         ${module.questions.length ? module.questions.map((question) => `
           <div class="training-question-admin-row">
-            <span><b>${escapeHtml(question.prompt)}</b><small>${question.type === "location" ? "Bild / Strecke" : question.type === "scenario" ? "Szenario" : question.type === "choice" ? "Antwort-Checkliste" : "Musterlösung"} · max. ${escapeHtml(question.maxPoints)} Punkt</small></span>
+            <span><b>${escapeHtml(question.prompt)}</b><small>${question.type === "location" ? question.stationType === "combat" ? "Combat-Landung / Ort" : module.id === "est-location" ? "Ort" : "Strecke" : question.type === "scenario" ? "Szenario" : "Musterlösung"} · max. ${escapeHtml(question.maxPoints)} Punkt</small></span>
             <button class="mini-icon training-question-edit" data-bank="${bank}" data-module-id="${escapeHtml(module.id)}" data-question-id="${escapeHtml(question.id)}" type="button">${actionIcon("edit")}</button>
             <button class="mini-icon danger training-question-delete" data-bank="${bank}" data-module-id="${escapeHtml(module.id)}" data-question-id="${escapeHtml(question.id)}" type="button">${actionIcon("delete")}</button>
           </div>
@@ -3175,22 +3177,30 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
   const question = module?.questions.find((item) => item.id === questionId);
   if (!module) return;
   const moduleName = cleanText(module.name || "");
-  const imageEnabled = /ortskunde|helistrecke|fahrstrecke/i.test(moduleName) || question?.type === "location";
+  const isOrtskunde = /ortskunde/i.test(moduleName) || module.id === "est-location";
+  const isFahrstrecke = /fahrstrecke/i.test(moduleName) || module.id === "est-drive";
+  const isHelistrecke = /helistrecke/i.test(moduleName) || module.id === "est-heli";
+  const imageEnabled = isOrtskunde || isFahrstrecke || isHelistrecke || question?.type === "location";
   const scenarioEnabled = /szenario/i.test(moduleName) || question?.type === "scenario";
-  const defaultType = imageEnabled ? "location" : scenarioEnabled ? "scenario" : question?.type === "choice" ? "choice" : "manual";
-  const typeLabel = imageEnabled ? "Ort / Strecke mit Bild" : scenarioEnabled ? "Szenario" : defaultType === "choice" ? "Antworten als Checkliste" : "Musterlösung / manuelle Bewertung";
+  const defaultType = imageEnabled ? "location" : scenarioEnabled ? "scenario" : "manual";
+  const isTimedRoute = isFahrstrecke || isHelistrecke;
+  const stationType = question?.stationType || (isHelistrecke && /dach|landung|combat/i.test(question?.prompt || "") ? "combat" : "route");
+  const typeLabel = isOrtskunde ? "Ortskunde · Ort mit Bild · max. 1 Punkt" : isFahrstrecke ? "Fahrstrecke · Strecke mit Sollzeit" : isHelistrecke ? "Helistrecke · Route oder Combat-Landung" : scenarioEnabled ? "Szenario" : "Frage mit Musterlösung";
+  const promptLabel = isOrtskunde ? "Ort" : isFahrstrecke ? "Strecke" : isHelistrecke ? "Strecke / Combat-Landung" : "Frage";
+  const maxPointsValue = isOrtskunde ? 1 : Math.min(10, Number(question?.maxPoints || (isTimedRoute ? 10 : 1)));
   openModal(`
     <h3>${question ? "Frage bearbeiten" : "Frage erstellen"}</h3>
     <p class="muted">${escapeHtml(module.name)}</p>
     <form id="trainingQuestionForm" class="form-grid training-question-form">
-      <label class="full">${imageEnabled ? "Titel / Name" : "Frage"}<textarea name="prompt" required>${escapeHtml(question?.prompt || "")}</textarea></label>
+      <label class="full">${escapeHtml(promptLabel)}<textarea name="prompt" required>${escapeHtml(question?.prompt || "")}</textarea></label>
       <input type="hidden" name="type" id="trainingQuestionType" value="${escapeHtml(defaultType)}">
       <div class="question-type-display"><span>Fragentyp</span><strong>${escapeHtml(typeLabel)}</strong></div>
-      <label>Max. Punkte<input name="maxPoints" type="number" min="0.5" max="10" step="0.5" value="${escapeHtml(Math.min(10, Number(question?.maxPoints || (imageEnabled ? 10 : 1))))}"></label>
+      ${isOrtskunde ? `<input type="hidden" name="maxPoints" value="1">` : `<label>Max. Punkte<input name="maxPoints" type="number" min="0.5" max="10" step="0.5" value="${escapeHtml(maxPointsValue)}"></label>`}
+      ${isHelistrecke ? `<label>Heli-Eintrag<select name="stationType"><option value="route" ${stationType === "route" ? "selected" : ""}>Strecke</option><option value="combat" ${stationType === "combat" ? "selected" : ""}>Combat-Landung / Ort</option></select></label>` : `<input type="hidden" name="stationType" value="">`}
       ${!imageEnabled ? `<label class="full manual-question-fields scenario-question-fields">Musterlösung / Prüferinfo<textarea name="solution" placeholder="Wird dem Prüfer während der Prüfung angezeigt.">${escapeHtml(question?.solution || "")}</textarea></label>` : `<input type="hidden" name="solution" value="${escapeHtml(question?.solution || "")}">`}
-      ${!imageEnabled && !scenarioEnabled ? `<label class="full choice-question-fields">Antworten / Bewertungspunkte<textarea name="answers" placeholder="Eine Antwort oder einen Bewertungspunkt pro Zeile">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea></label>` : `<textarea name="answers" class="hidden">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea>`}
+      <textarea name="answers" class="hidden">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea>
       ${scenarioEnabled ? `<label class="full scenario-question-fields scenario-big-field">Szenario Ablauf / Prüferinfos<textarea name="scenarioInfo" placeholder="Beschreibe das Szenario ausführlich: Lage, Ablauf, erwartetes Verhalten, Hinweise für Prüfer...">${escapeHtml(question?.scenarioInfo || "")}</textarea></label><label class="full scenario-question-fields">Akte / Maßnahme<textarea name="fileAction" placeholder="Welche Akte, Maßnahme oder Sanktion soll vergeben werden?">${escapeHtml(question?.fileAction || "")}</textarea></label>` : `<textarea name="scenarioInfo" class="hidden">${escapeHtml(question?.scenarioInfo || "")}</textarea><textarea name="fileAction" class="hidden">${escapeHtml(question?.fileAction || "")}</textarea>`}
-      ${imageEnabled ? `<label class="image-question-fields">Sollzeit<input name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}" placeholder="MM:SS oder Sekunden"></label>` : `<input type="hidden" name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}">`}
+      ${isTimedRoute ? `<label class="image-question-fields">Sollzeit<input name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}" placeholder="MM:SS oder Sekunden"></label>` : `<input type="hidden" name="targetSeconds" value="">`}
       ${imageEnabled ? `<div class="full image-upload-card">
         <label class="image-upload-drop" id="trainingQuestionImageDrop" title="Bild hochladen">
           <input id="trainingQuestionImage" type="file" accept="image/*">
@@ -3243,9 +3253,10 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
         image: String(form.get("image") || "").trim(),
         scenarioInfo: String(form.get("scenarioInfo") || "").trim(),
         fileAction: String(form.get("fileAction") || "").trim(),
-        targetSeconds: secondsFromTimeInput(form.get("targetSeconds")),
+        stationType: String(form.get("stationType") || "").trim(),
+        targetSeconds: isTimedRoute ? secondsFromTimeInput(form.get("targetSeconds")) : 0,
         timeSeconds: Number(question?.timeSeconds || 0),
-        maxPoints: Math.min(10, Math.max(0.5, Number(form.get("maxPoints") || 1)))
+        maxPoints: isOrtskunde ? 1 : Math.min(10, Math.max(0.5, Number(form.get("maxPoints") || 1)))
       };
       if (!nextQuestion.prompt) {
         modal.querySelector("#modalError").textContent = "Bitte eine Frage eintragen.";
@@ -4080,7 +4091,7 @@ function createTrainingExam(kind, candidateId, secondExaminerId, modules) {
       description: module.description,
       phase: module.phase || 0,
       status: "Offen",
-      questions: module.questions.map((question) => ({ ...question, result: null, traineeAnswer: "", selectedCorrect: [], selectedWrong: [], selectedAnswers: [], manualPoints: 0, timeSeconds: Number(question.timeSeconds || 0), targetSeconds: Number(question.targetSeconds || 0), questionPenalty: false, penaltyPoints: 0, skipped: false }))
+      questions: module.questions.map((question) => ({ ...question, result: null, traineeAnswer: "", selectedCorrect: [], selectedWrong: [], selectedAnswers: [], manualPoints: 0, stationType: question.stationType || "", timeSeconds: Number(question.timeSeconds || 0), targetSeconds: Number(question.targetSeconds || 0), questionPenalty: false, penaltyPoints: 0, skipped: false }))
     }))
   };
   if (kind === "est") prepareEstExamModules(exam);
@@ -4097,6 +4108,7 @@ function prepareEstExamModules(exam) {
     sideModule.questions = shuffledItems(sideModule.questions || []).map((question) => ({
       ...question,
       type: "location",
+      stationType: question.stationType || (sideModule.id === "est-heli" && /dach|landung|combat/i.test(question.prompt || "") ? "combat" : sideModule.id === "est-heli" ? "route" : ""),
       maxPoints: timed ? Number(question.maxPoints || 10) : 1,
       targetSeconds: Number(question.targetSeconds || 0),
       timeSeconds: Number(question.timeSeconds || 0),
@@ -4491,8 +4503,8 @@ function renderEstCatalogRunner(exam) {
   const mainModule = currentManagedExamModule(exam);
   const sideModules = estSideModulesForMain(exam, mainModule);
   const isHeliModule = mainModule?.id === "est-heli";
-  const mainQuestions = isHeliModule ? (mainModule?.questions || []).slice(0, 1) : (mainModule?.questions || []);
-  const heliSideQuestions = isHeliModule ? (mainModule?.questions || []).slice(1) : [];
+  const mainQuestions = isHeliModule ? (mainModule?.questions || []).filter((question) => question.stationType !== "combat") : (mainModule?.questions || []);
+  const heliSideQuestions = isHeliModule ? (mainModule?.questions || []).filter((question) => question.stationType === "combat") : [];
   return `
     ${renderExamModuleStepper(exam)}
     <div class="est-runner-shell">
