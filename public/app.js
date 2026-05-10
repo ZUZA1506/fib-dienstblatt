@@ -3192,11 +3192,12 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
       ${scenarioEnabled ? `<label class="full scenario-question-fields scenario-big-field">Szenario Ablauf / Prüferinfos<textarea name="scenarioInfo" placeholder="Beschreibe das Szenario ausführlich: Lage, Ablauf, erwartetes Verhalten, Hinweise für Prüfer...">${escapeHtml(question?.scenarioInfo || "")}</textarea></label><label class="full scenario-question-fields">Akte / Maßnahme<textarea name="fileAction" placeholder="Welche Akte, Maßnahme oder Sanktion soll vergeben werden?">${escapeHtml(question?.fileAction || "")}</textarea></label>` : `<textarea name="scenarioInfo" class="hidden">${escapeHtml(question?.scenarioInfo || "")}</textarea><textarea name="fileAction" class="hidden">${escapeHtml(question?.fileAction || "")}</textarea>`}
       ${imageEnabled ? `<label class="image-question-fields">Sollzeit<input name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}" placeholder="MM:SS oder Sekunden"></label>` : `<input type="hidden" name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}">`}
       ${imageEnabled ? `<div class="full image-upload-card">
-        <div>
-          <strong>Bild für diese Station</strong>
-          <small>Quadratisch oder rechteckig, wird in der Prüfung direkt angezeigt.</small>
-        </div>
-        <label class="image-upload-drop"><input id="trainingQuestionImage" type="file" accept="image/*"><span>Bild auswählen</span><small>PNG, JPG oder WebP</small></label>
+        <label class="image-upload-drop" id="trainingQuestionImageDrop" title="Bild hochladen">
+          <input id="trainingQuestionImage" type="file" accept="image/*">
+          <span class="upload-icon">${iconSvg("Plus")}</span>
+          <strong>Bild hochladen</strong>
+          <small>Drag & Drop oder klicken</small>
+        </label>
         <input name="image" type="hidden" value="${escapeHtml(question?.image || "")}">
         <div class="question-image-preview">${question?.image ? `<img src="${escapeHtml(question.image)}" alt="">` : `<span class="muted">Noch kein Bild hinterlegt.</span>`}</div>
       </div>` : `<input name="image" type="hidden" value="${escapeHtml(question?.image || "")}">`}
@@ -3207,12 +3208,25 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
       </div>
     </form>
   `, (modal) => {
-    modal.querySelector("#trainingQuestionImage")?.addEventListener("change", async (event) => {
-      const file = event.target.files?.[0];
+    const handleQuestionImageFile = async (file) => {
       if (!file) return;
       const dataUrl = await readImageFileAsDataUrl(file);
       modal.querySelector("[name='image']").value = dataUrl;
       modal.querySelector(".question-image-preview").innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="">`;
+    };
+    modal.querySelector("#trainingQuestionImage")?.addEventListener("change", async (event) => {
+      await handleQuestionImageFile(event.target.files?.[0]);
+    });
+    const imageDrop = modal.querySelector("#trainingQuestionImageDrop");
+    imageDrop?.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      imageDrop.classList.add("drag-over");
+    });
+    imageDrop?.addEventListener("dragleave", () => imageDrop.classList.remove("drag-over"));
+    imageDrop?.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      imageDrop.classList.remove("drag-over");
+      await handleQuestionImageFile(event.dataTransfer?.files?.[0]);
     });
     modal.querySelector("#trainingQuestionForm").addEventListener("submit", (event) => {
       event.preventDefault();
@@ -4032,6 +4046,10 @@ function isEstLocationModule(module) {
   return /ortskunde|fahrstrecke/i.test(cleanText(module?.name || "")) || ["est-location", "est-drive"].includes(module?.id);
 }
 
+function isLocationQuestion(question, side = "main") {
+  return side === "location" || question?.type === "location";
+}
+
 function orderedEstModules(modules = []) {
   const order = ["est-law", "est-location", "est-scenario", "est-rules", "est-drive", "est-heli"];
   return [...modules].sort((a, b) => {
@@ -4250,7 +4268,7 @@ function activeExamItems(kind) {
 
 function examArchiveItems(kind) {
   return trainingStore().activeExams
-    .filter((exam) => exam.kind === kind && exam.status === "Archiviert")
+    .filter((exam) => exam.kind === kind && ["Archiviert", "Abgeschlossen"].includes(exam.status))
     .sort((a, b) => new Date(b.archivedAt || b.startedAt || 0) - new Date(a.archivedAt || a.startedAt || 0));
 }
 
@@ -4419,13 +4437,25 @@ function renderExamModuleStepper(exam) {
 
 function renderCatalogQuestion(question, index, side = "main") {
   const maxPoints = Number(question.maxPoints || 1);
-  const scoreValues = side === "location" ? [0, 0.5, 1] : [0, 0.5, 1, 1.5, 2].filter((value) => value <= maxPoints);
+  const scoreValues = isLocationQuestion(question, side) ? [0, 0.5, 1] : [0, 0.5, 1, 1.5, 2].filter((value) => value <= maxPoints);
   const scoreClass = (value) => `score-select score-${String(value || 0).replace(".", "-")}`;
   const scoreBlock = (html) => `<div class="question-score-row"><span>Bewertung</span>${html}</div>`;
-  if (side === "location" || question.type === "location") {
+  if (isLocationQuestion(question, side)) {
     return `
       <article class="exam-catalog-question location-question" data-question-id="${escapeHtml(question.id)}">
-        <div class="catalog-question-body"><div class="catalog-question-head"><b>${index + 1}. ${escapeHtml(question.prompt)}</b><small>Ortskunde</small></div>${question.image ? `<img class="location-question-image" src="${escapeHtml(question.image)}" alt="">` : ""}</div>
+        <div class="catalog-question-body"><div class="catalog-question-head"><b>${index + 1}. ${escapeHtml(question.prompt)}</b><small>Praxis</small></div>${question.image ? `<img class="location-question-image" src="${escapeHtml(question.image)}" alt="">` : ""}${question.targetSeconds ? `<label>Sollzeit<input data-exam-target="${escapeHtml(question.id)}" value="${escapeHtml(formatSecondsInput(question.targetSeconds))}" placeholder="MM:SS"></label><label>Gefahrene Zeit<input data-exam-time="${escapeHtml(question.id)}" value="${escapeHtml(formatSecondsInput(question.timeSeconds || 0))}" placeholder="MM:SS"></label>` : ""}</div>
+        ${scoreBlock(`<select class="${scoreClass(question.manualPoints)}" data-exam-score="${escapeHtml(question.id)}">${scoreValues.map((value) => `<option value="${value}" ${Number(question.manualPoints || 0) === value ? "selected" : ""}>${String(value).replace(".", ",")}</option>`).join("")}</select>`)}
+      </article>
+    `;
+  }
+  if (question.type === "scenario") {
+    return `
+      <article class="exam-catalog-question scenario-runner-question" data-question-id="${escapeHtml(question.id)}">
+        <div class="catalog-question-body">
+          <div class="catalog-question-head"><b>${index + 1}. ${escapeHtml(question.prompt)}</b><small>Max. ${escapeHtml(maxPoints)} Punkte</small></div>
+          <label>Antwort / Ablauf des Prüflings<textarea data-autosave-exam data-exam-answer="${escapeHtml(question.id)}" placeholder="Ablauf, Entscheidungen und Antworten mitschreiben">${escapeHtml(question.traineeAnswer || "")}</textarea></label>
+          ${question.solution ? `<div class="inline-solution">Musterlösung: ${escapeHtml(question.solution)}</div>` : ""}
+        </div>
         ${scoreBlock(`<select class="${scoreClass(question.manualPoints)}" data-exam-score="${escapeHtml(question.id)}">${scoreValues.map((value) => `<option value="${value}" ${Number(question.manualPoints || 0) === value ? "selected" : ""}>${String(value).replace(".", ",")}</option>`).join("")}</select>`)}
       </article>
     `;
@@ -4460,27 +4490,59 @@ function renderCatalogQuestion(question, index, side = "main") {
 function renderEstCatalogRunner(exam) {
   const mainModule = currentManagedExamModule(exam);
   const sideModules = estSideModulesForMain(exam, mainModule);
+  const isHeliModule = mainModule?.id === "est-heli";
+  const mainQuestions = isHeliModule ? (mainModule?.questions || []).slice(0, 1) : (mainModule?.questions || []);
+  const heliSideQuestions = isHeliModule ? (mainModule?.questions || []).slice(1) : [];
   return `
     ${renderExamModuleStepper(exam)}
     <div class="est-runner-shell">
       <section class="est-runner-main ${mainModule?.status === "Abgeschlossen" ? examModuleTone(mainModule) : ""}">
         <div class="panel-header slim"><div><h3>${escapeHtml(mainModule?.name || "Hauptmodul")}</h3><p class="muted">Fragenkatalog links · alle Eingaben speichern automatisch.</p></div></div>
         <div class="exam-catalog-list">
-          ${(mainModule?.questions || []).map((question, index) => renderCatalogQuestion(question, index, "main")).join("") || `<p class="muted">Keine Fragen in diesem Modul.</p>`}
+          ${mainQuestions.map((question, index) => renderCatalogQuestion(question, index, isHeliModule ? "location" : "main")).join("") || `<p class="muted">Keine Fragen in diesem Modul.</p>`}
         </div>
       </section>
       <aside class="est-location-side">
-        <div class="panel-header slim"><div><h3>${mainModule?.id === "est-rules" ? "Fahrstrecke" : "Praxis"}</h3><p class="muted">${sideModules.length ? "Parallel zum aktuellen Modul." : "Dieses Modul läuft ohne parallele Praxisstrecke."}</p></div></div>
-        ${sideModules.length ? sideModules.map((sideModule) => `
+        <div class="panel-header slim"><div><h3>${mainModule?.id === "est-scenario" ? "Szenario-Infos" : mainModule?.id === "est-heli" ? "Dachlandungen" : mainModule?.id === "est-rules" ? "Fahrstrecke" : "Praxis"}</h3><p class="muted">${sideModules.length || mainModule?.id === "est-scenario" || isHeliModule ? "Parallel zum aktuellen Modul." : "Dieses Modul läuft ohne parallele Praxisstrecke."}</p></div></div>
+        ${mainModule?.id === "est-scenario" ? renderScenarioSidePanel(mainModule) : ""}
+        ${isHeliModule ? `
+          <section class="est-side-module ${mainModule.status === "Abgeschlossen" ? examModuleTone(mainModule) : ""}">
+            <div class="catalog-question-head"><b>Dächer / Landepunkte</b><small>${escapeHtml(mainModule.status || "Offen")}</small></div>
+            <div class="exam-catalog-list location-list">
+              ${heliSideQuestions.map((question, index) => renderCatalogQuestion(question, index, "location")).join("") || `<p class="muted">Keine Dachlandungen hinterlegt.</p>`}
+            </div>
+          </section>
+        ` : ""}
+        ${!isHeliModule && sideModules.length ? sideModules.map((sideModule) => `
           <section class="est-side-module ${sideModule.status === "Abgeschlossen" ? examModuleTone(sideModule) : ""}">
             <div class="catalog-question-head"><b>${escapeHtml(sideModule.name)}</b><small>${escapeHtml(sideModule.status || "Offen")}</small></div>
             <div class="exam-catalog-list location-list">
               ${(sideModule.questions || []).map((question, index) => renderCatalogQuestion(question, index, "location")).join("") || `<p class="muted">Keine Einträge hinterlegt.</p>`}
             </div>
           </section>
-        `).join("") : `<p class="muted">Keine parallele Praxisstrecke in diesem Abschnitt.</p>`}
+        `).join("") : (!isHeliModule && mainModule?.id !== "est-scenario" ? `<p class="muted">Keine parallele Praxisstrecke in diesem Abschnitt.</p>` : "")}
       </aside>
     </div>
+  `;
+}
+
+function renderScenarioSidePanel(module) {
+  return `
+    <section class="est-side-module scenario-side-module">
+      ${(module?.questions || []).map((question, index) => `
+        <article class="scenario-side-card">
+          <div class="catalog-question-head"><b>${index + 1}. ${escapeHtml(question.prompt)}</b><small>Prüferbereich</small></div>
+          <div class="scenario-info-box">
+            <strong>Szenario Ablauf / Prüferinfos</strong>
+            <p>${escapeHtml(question.scenarioInfo || "Noch keine Szenario-Infos im Leitungsbereich hinterlegt.")}</p>
+          </div>
+          <div class="scenario-info-box">
+            <strong>Akte / Maßnahme</strong>
+            <p>${escapeHtml(question.fileAction || "Noch keine Akte oder Maßnahme hinterlegt.")}</p>
+          </div>
+        </article>
+      `).join("") || `<p class="muted">Keine Szenario-Einträge hinterlegt.</p>`}
+    </section>
   `;
 }
 
@@ -4780,9 +4842,13 @@ function openTrainingExamModal(examId, readOnly = false) {
         exam.status = "Modul bereit";
       }
       saveActiveTrainingExam(exam);
-      closeModal();
       renderDepartmentPage(departmentByPage(state.page));
       showNotify(completedAll ? "EST Prüfung vollständig abgeschlossen." : "Modul abgeschlossen.", "success");
+      if (completedAll) {
+        openTrainingExamModal(exam.id, true);
+      } else {
+        closeModal();
+      }
     });
     modal.querySelector("#startAnotherModule")?.addEventListener("click", () => {
       modal.querySelector("#nextModuleMenu")?.classList.toggle("hidden");
@@ -4812,9 +4878,9 @@ function openTrainingExamModal(examId, readOnly = false) {
         }
       }
       saveActiveTrainingExam(exam);
-      openTrainingExamModal(exam.id);
       renderDepartmentPage(departmentByPage(state.page));
       showNotify(completedAll ? "EST Prüfung vollständig abgeschlossen." : "Modul abgeschlossen.", "success");
+      openTrainingExamModal(exam.id, completedAll);
     }));
     modal.querySelector("#closeExamRunner")?.addEventListener("click", () => {
       if (!archiveView && !isSetup) saveAll();
