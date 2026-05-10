@@ -4544,6 +4544,11 @@ function openTrainingExamModal(examId, readOnly = false) {
   `, (modal) => {
     modal.classList.add("exam-modal", "catalog-exam-modal");
     if (isSetup) modal.classList.add("setup-exam-modal");
+    if (isSetup && exam.status === "Vorbereitung" && !exam.startedAt) {
+      modalRoot.dataset.discardTrainingExamId = exam.id;
+    } else {
+      delete modalRoot.dataset.discardTrainingExamId;
+    }
     const persist = (message = "") => {
       ensureExamModuleState(exam);
       saveActiveTrainingExam(exam);
@@ -4599,6 +4604,7 @@ function openTrainingExamModal(examId, readOnly = false) {
         showNotify("Bitte zuerst ein Startmodul auswählen.", "error");
         return;
       }
+      delete modalRoot.dataset.discardTrainingExamId;
       const module = exam.modules.find((item) => item.id === selected);
       exam.secondExaminerId = modal.querySelector("#examSetupSecondExaminer")?.value || "";
       exam.activeMainModuleId = selected;
@@ -4695,7 +4701,7 @@ function openTrainingExamModal(examId, readOnly = false) {
       if (!archiveView && !isSetup) saveAll();
       closeModal();
       renderDepartmentPage(departmentByPage(state.page));
-      if (!archiveView) showNotify("Prüfung automatisch gespeichert.", "success");
+      if (!archiveView && !isSetup) showNotify("Prüfung automatisch gespeichert.", "success");
     });
   });
 }
@@ -7041,6 +7047,19 @@ function openModal(html, onReady) {
 }
 
 function closeModal() {
+  const discardTrainingExamId = modalRoot.dataset.discardTrainingExamId;
+  if (discardTrainingExamId) {
+    try {
+      const store = trainingStore();
+      store.activeExams = (store.activeExams || []).filter((exam) => exam.id !== discardTrainingExamId || exam.startedAt);
+      saveTrainingStore(store);
+      const department = departmentByPage?.(state.page);
+      if (department?.id === "training-recruitment") window.setTimeout(() => renderDepartmentPage(department), 0);
+    } catch {
+      // Closing a modal should never block the UI.
+    }
+    delete modalRoot.dataset.discardTrainingExamId;
+  }
   document.removeEventListener("keydown", handleModalEscape);
   modalRoot.classList.add("hidden");
   modalRoot.innerHTML = "";
