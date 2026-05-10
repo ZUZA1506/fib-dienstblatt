@@ -2552,7 +2552,7 @@ function makeTrainingId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function defaultTrainingQuestion(prompt, type = "manual") {
+function defaultTrainingQuestion(prompt, type = "manual", maxPoints = 1) {
   return {
     id: makeTrainingId("question"),
     prompt,
@@ -2564,19 +2564,21 @@ function defaultTrainingQuestion(prompt, type = "manual") {
     image: "",
     scenarioInfo: "",
     fileAction: "",
-    maxPoints: 1
+    targetSeconds: 0,
+    timeSeconds: 0,
+    maxPoints
   };
 }
 
 function defaultTrainingStore() {
   return {
     estModules: [
-      { id: "est-law", name: "Rechtskunde", description: "Rechtsfragen und Grundlagen", questions: [defaultTrainingQuestion("Wann darf eine Person durchsucht werden?"), defaultTrainingQuestion("Welche Rechte gelten bei einer Festnahme?", "choice")] },
-      { id: "est-rules", name: "Dienstvorschriften", description: "Interne Regeln und Vorgehen", questions: [defaultTrainingQuestion("Wie wird ein Einsatzbericht dokumentiert?")] },
+      { id: "est-law", name: "Rechtskunde", description: "Rechtsfragen und Grundlagen", phase: 1, questions: [defaultTrainingQuestion("Wann darf eine Person durchsucht werden?"), defaultTrainingQuestion("Welche Rechte gelten bei einer Festnahme?", "choice")] },
       { id: "est-location", name: "Ortskunde", description: "Orte, Wege und Zuständigkeiten", questions: EST_LOCATION_PROMPTS.map((place) => defaultTrainingQuestion(place, "location")) },
-      { id: "est-heli", name: "Helistrecke", description: "Helikopterroute mit Bild und Bewertung", questions: [defaultTrainingQuestion("Helistrecke 1", "location")] },
-      { id: "est-drive", name: "Fahrstrecke", description: "Fahrroute mit Bild und Bewertung", questions: [defaultTrainingQuestion("Fahrstrecke 1", "location")] },
-      { id: "est-scenario", name: "Szenario", description: "Praktisches Szenario mit Akten-/Prüferinfos", questions: [defaultTrainingQuestion("Standardszenario", "scenario")] }
+      { id: "est-scenario", name: "Szenario", description: "10-80 / praktisches Szenario mit Akten-/Prüferinfos", phase: 2, questions: [defaultTrainingQuestion("10-80 Szenario", "scenario")] },
+      { id: "est-rules", name: "Dienstvorschriften", description: "Interne Regeln und Vorgehen", phase: 3, questions: [defaultTrainingQuestion("Wie wird ein Einsatzbericht dokumentiert?")] },
+      { id: "est-drive", name: "Fahrstrecke", description: "Fahrroute mit Bild und automatischer Zeitwertung", questions: [defaultTrainingQuestion("Fahrstrecke 1", "location", 10)] },
+      { id: "est-heli", name: "Helistrecke", description: "Helikopterroute und Landedächer mit Bild und Zeitwertung", phase: 4, questions: [defaultTrainingQuestion("Helistrecke Route", "location", 10), defaultTrainingQuestion("Dachlandung 1", "location", 10)] }
     ],
     moduleModules: trainings.filter((training) => training !== "EST").slice(0, 6).map((training) => ({
       id: `module-${training.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -2617,7 +2619,9 @@ function normalizeTrainingStore(store) {
         image: question.image || "",
         scenarioInfo: question.scenarioInfo || "",
         fileAction: question.fileAction || "",
-        maxPoints: Math.min(1, Math.max(0.5, Number(question.maxPoints || 1))),
+        targetSeconds: Number(question.targetSeconds || 0),
+        timeSeconds: Number(question.timeSeconds || 0),
+        maxPoints: ["est-drive", "est-heli"].includes(module.id) ? Math.min(10, Math.max(1, Number(question.maxPoints || 10))) : Math.min(10, Math.max(0.5, Number(question.maxPoints || 1))),
         penaltyPoints: 0,
         questionPenalty: false
       }))
@@ -2637,12 +2641,12 @@ function saveTrainingStore(store) {
 }
 
 function activeEstExam() {
-  return trainingStore().activeExams.find((exam) => exam.kind === "est" && !["Abgeschlossen", "Archiviert"].includes(exam.status));
+  return trainingStore().activeExams.find((exam) => exam.kind === "est" && !["Vorbereitung", "Abgeschlossen", "Archiviert"].includes(exam.status));
 }
 
 function activeExamItems(kind) {
   return trainingStore().activeExams
-    .filter((exam) => exam.kind === kind && !["Abgeschlossen", "Archiviert"].includes(exam.status))
+    .filter((exam) => exam.kind === kind && !["Vorbereitung", "Abgeschlossen", "Archiviert"].includes(exam.status))
     .sort((a, b) => new Date(b.createdAt || b.startedAt || 0) - new Date(a.createdAt || a.startedAt || 0));
 }
 
@@ -3181,11 +3185,12 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
           <option value="scenario" ${question?.type === "scenario" ? "selected" : ""}>Szenario</option>
         </select>
       </label>
-      <label>Max. Punkte<input name="maxPoints" type="number" min="0.5" max="1" step="0.5" value="${escapeHtml(Math.min(1, Number(question?.maxPoints || 1)))}"></label>
+      <label>Max. Punkte<input name="maxPoints" type="number" min="0.5" max="10" step="0.5" value="${escapeHtml(Math.min(10, Number(question?.maxPoints || (imageEnabled ? 10 : 1))))}"></label>
       <label class="full manual-question-fields scenario-question-fields">Musterlösung / Prüferinfo<textarea name="solution" placeholder="Wird dem Prüfer während der Prüfung angezeigt.">${escapeHtml(question?.solution || "")}</textarea></label>
       <label class="full choice-question-fields">Antworten / Bewertungspunkte<textarea name="answers" placeholder="Eine Antwort oder einen Bewertungspunkt pro Zeile">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea></label>
       <label class="full scenario-question-fields">Szenario Ablauf / Prüferinfos<textarea name="scenarioInfo" placeholder="Was soll im Szenario passieren?">${escapeHtml(question?.scenarioInfo || "")}</textarea></label>
       <label class="full scenario-question-fields">Akte / Maßnahme<textarea name="fileAction" placeholder="Welche Akte, Maßnahme oder Sanktion soll vergeben werden?">${escapeHtml(question?.fileAction || "")}</textarea></label>
+      <label class="image-question-fields ${imageEnabled || question?.image ? "" : "hidden"}">Sollzeit<input name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}" placeholder="MM:SS oder Sekunden"></label>
       <div class="full image-question-fields ${imageEnabled || question?.image ? "" : "hidden"}">
         <label>Bild hochladen<input id="trainingQuestionImage" type="file" accept="image/*"></label>
         <input name="image" type="hidden" value="${escapeHtml(question?.image || "")}">
@@ -3231,7 +3236,9 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
         image: String(form.get("image") || "").trim(),
         scenarioInfo: String(form.get("scenarioInfo") || "").trim(),
         fileAction: String(form.get("fileAction") || "").trim(),
-        maxPoints: Math.min(1, Math.max(0.5, Number(form.get("maxPoints") || 1)))
+        targetSeconds: secondsFromTimeInput(form.get("targetSeconds")),
+        timeSeconds: Number(question?.timeSeconds || 0),
+        maxPoints: Math.min(10, Math.max(0.5, Number(form.get("maxPoints") || 1)))
       };
       if (!nextQuestion.prompt) {
         modal.querySelector("#modalError").textContent = "Bitte eine Frage eintragen.";
@@ -3990,7 +3997,16 @@ function shuffledItems(items) {
 }
 
 function isEstLocationModule(module) {
-  return /ortskunde|helistrecke|fahrstrecke/i.test(cleanText(module?.name || "")) || ["est-location", "est-heli", "est-drive"].includes(module?.id);
+  return /ortskunde|fahrstrecke/i.test(cleanText(module?.name || "")) || ["est-location", "est-drive"].includes(module?.id);
+}
+
+function orderedEstModules(modules = []) {
+  const order = ["est-law", "est-location", "est-scenario", "est-rules", "est-drive", "est-heli"];
+  return [...modules].sort((a, b) => {
+    const ai = order.indexOf(a.id);
+    const bi = order.indexOf(b.id);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 }
 
 function createTrainingExam(kind, candidateId, secondExaminerId, modules) {
@@ -4008,12 +4024,13 @@ function createTrainingExam(kind, candidateId, secondExaminerId, modules) {
     createdAt: new Date().toISOString(),
     startedAt: null,
     activeMainModuleId: "",
-    modules: modules.map((module) => ({
+    modules: (kind === "est" ? orderedEstModules(modules) : modules).map((module) => ({
       id: module.id,
       name: module.name,
       description: module.description,
+      phase: module.phase || 0,
       status: "Offen",
-      questions: module.questions.map((question) => ({ ...question, result: null, traineeAnswer: "", selectedCorrect: [], selectedWrong: [], selectedAnswers: [], manualPoints: 0, questionPenalty: false, penaltyPoints: 0, skipped: false }))
+      questions: module.questions.map((question) => ({ ...question, result: null, traineeAnswer: "", selectedCorrect: [], selectedWrong: [], selectedAnswers: [], manualPoints: 0, timeSeconds: Number(question.timeSeconds || 0), targetSeconds: Number(question.targetSeconds || 0), questionPenalty: false, penaltyPoints: 0, skipped: false }))
     }))
   };
   if (kind === "est") prepareEstExamModules(exam);
@@ -4022,14 +4039,17 @@ function createTrainingExam(kind, candidateId, secondExaminerId, modules) {
 
 function prepareEstExamModules(exam) {
   if (!exam || exam.kind !== "est" || exam.locationRandomized) return exam;
-  exam.modules.filter(isEstLocationModule).forEach((sideModule) => {
+  exam.modules.filter((module) => isEstLocationModule(module) || module.id === "est-heli").forEach((sideModule) => {
     if (!sideModule.questions?.length && sideModule.id === "est-location") {
       sideModule.questions = EST_LOCATION_PROMPTS.map((place) => defaultTrainingQuestion(place, "location"));
     }
+    const timed = ["est-drive", "est-heli"].includes(sideModule.id);
     sideModule.questions = shuffledItems(sideModule.questions || []).map((question) => ({
       ...question,
       type: "location",
-      maxPoints: 1,
+      maxPoints: timed ? Number(question.maxPoints || 10) : 1,
+      targetSeconds: Number(question.targetSeconds || 0),
+      timeSeconds: Number(question.timeSeconds || 0),
       manualPoints: Number(question.manualPoints || 0),
       traineeAnswer: "",
       selectedAnswers: [],
@@ -4065,7 +4085,7 @@ function ensureExamModuleState(exam) {
       question.skipped = Boolean(question.skipped);
       question.traineeAnswer = question.traineeAnswer || "";
       question.manualPoints = Number(question.manualPoints ?? question.result?.points ?? 0);
-      question.maxPoints = 1;
+      question.maxPoints = Math.min(10, Math.max(0.5, Number(question.maxPoints || 1)));
     });
   });
   if (exam.kind === "est" && !exam.activeMainModuleId) {
@@ -4083,6 +4103,15 @@ function estLocationModule(exam) {
 function estSideModules(exam) {
   ensureExamModuleState(exam);
   return exam.modules.filter(isEstLocationModule);
+}
+
+function estSideModulesForMain(exam, mainModule = currentManagedExamModule(exam)) {
+  ensureExamModuleState(exam);
+  const map = {
+    "est-law": ["est-location"],
+    "est-rules": ["est-drive"]
+  };
+  return exam.modules.filter((module) => (map[mainModule?.id] || []).includes(module.id));
 }
 
 function estMainModules(exam) {
@@ -4132,6 +4161,32 @@ function scoreChoiceQuestion(question) {
   return Math.max(0, Math.min(1, Number(question.manualPoints || 0)));
 }
 
+function timedQuestionPoints(question) {
+  const target = Number(question.targetSeconds || 0);
+  const actual = Number(question.timeSeconds || 0);
+  const max = Number(question.maxPoints || 10);
+  if (!target || !actual) return Number(question.manualPoints || 0);
+  if (actual <= target) return max;
+  const overRatio = (actual - target) / target;
+  return Math.max(0, Math.round((max * Math.max(0, 1 - overRatio)) * 10) / 10);
+}
+
+function formatSecondsInput(seconds) {
+  const value = Number(seconds || 0);
+  if (!value) return "";
+  const minutes = Math.floor(value / 60);
+  const rest = value % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function secondsFromTimeInput(value) {
+  const text = String(value || "").trim();
+  if (!text) return 0;
+  if (!text.includes(":")) return Number(text) || 0;
+  const [minutes, seconds] = text.split(":").map((part) => Number(part) || 0);
+  return minutes * 60 + seconds;
+}
+
 function renderEstExamPanel(department) {
   const store = trainingStore();
   const candidates = state.users.filter((user) => !user.trainings?.EST);
@@ -4139,7 +4194,7 @@ function renderEstExamPanel(department) {
     <div class="training-exam-layout department-overview-content">
       ${renderActiveTrainingExams("est", department)}
       <section class="panel training-exam-card compact-est-start">
-        <div class="panel-header"><div><h3>EST Prüfung erstellen</h3><p class="muted">Prüfling auswählen, Prüfung anlegen und anschließend das Startmodul im Prüfungsfenster wählen.</p></div></div>
+        <div class="panel-header"><div><h3>EST Prüfung erstellen</h3><p class="muted">Prüfling auswählen und Prüfung vorbereiten. Aktiv wird sie erst nach „Prüfung starten“.</p></div></div>
         <div class="exam-start-grid compact">
           <label>Prüfling ohne EST ${renderExamUserPicker("estCandidateInput", "estCandidateList", candidates, "Prüfling suchen und auswählen")}</label>
           <button class="blue-btn" id="startEstExam" type="button">EST Prüfung anlegen</button>
@@ -4159,7 +4214,7 @@ function estCompletedExamItems() {
 
 function activeExamItems(kind) {
   return trainingStore().activeExams
-    .filter((exam) => exam.kind === kind && !["Abgeschlossen", "Archiviert"].includes(exam.status))
+    .filter((exam) => exam.kind === kind && !["Vorbereitung", "Abgeschlossen", "Archiviert"].includes(exam.status))
     .sort((a, b) => new Date(b.createdAt || b.startedAt || 0) - new Date(a.createdAt || a.startedAt || 0));
 }
 
@@ -4374,7 +4429,7 @@ function renderCatalogQuestion(question, index, side = "main") {
 
 function renderEstCatalogRunner(exam) {
   const mainModule = currentManagedExamModule(exam);
-  const sideModules = estSideModules(exam);
+  const sideModules = estSideModulesForMain(exam, mainModule);
   return `
     ${renderExamModuleStepper(exam)}
     <div class="est-runner-shell">
@@ -4385,15 +4440,15 @@ function renderEstCatalogRunner(exam) {
         </div>
       </section>
       <aside class="est-location-side">
-        <div class="panel-header slim"><div><h3>Praxisstrecken</h3><p class="muted">Ortskunde, Helistrecke und Fahrstrecke laufen parallel.</p></div></div>
-        ${sideModules.map((sideModule) => `
+        <div class="panel-header slim"><div><h3>${mainModule?.id === "est-rules" ? "Fahrstrecke" : "Praxis"}</h3><p class="muted">${sideModules.length ? "Parallel zum aktuellen Modul." : "Dieses Modul läuft ohne parallele Praxisstrecke."}</p></div></div>
+        ${sideModules.length ? sideModules.map((sideModule) => `
           <section class="est-side-module ${sideModule.status === "Abgeschlossen" ? examModuleTone(sideModule) : ""}">
             <div class="catalog-question-head"><b>${escapeHtml(sideModule.name)}</b><small>${escapeHtml(sideModule.status || "Offen")}</small></div>
             <div class="exam-catalog-list location-list">
               ${(sideModule.questions || []).map((question, index) => renderCatalogQuestion(question, index, "location")).join("") || `<p class="muted">Keine Einträge hinterlegt.</p>`}
             </div>
           </section>
-        `).join("")}
+        `).join("") : `<p class="muted">Keine parallele Praxisstrecke in diesem Abschnitt.</p>`}
       </aside>
     </div>
   `;
@@ -4572,8 +4627,16 @@ function openTrainingExamModal(examId, readOnly = false) {
       } else {
         const answer = card.querySelector(`[data-exam-answer='${CSS.escape(question.id)}']`);
         const score = card.querySelector(`[data-exam-score='${CSS.escape(question.id)}']`);
+        const time = card.querySelector(`[data-exam-time='${CSS.escape(question.id)}']`);
+        const target = card.querySelector(`[data-exam-target='${CSS.escape(question.id)}']`);
         if (answer) question.traineeAnswer = answer.value || "";
-        if (score) question.manualPoints = Number(score.value);
+        if (time) question.timeSeconds = secondsFromTimeInput(time.value);
+        if (target) question.targetSeconds = secondsFromTimeInput(target.value);
+        if (Number(question.maxPoints || 1) > 1 || question.targetSeconds) {
+          question.manualPoints = timedQuestionPoints(question);
+        } else if (score) {
+          question.manualPoints = Number(score.value);
+        }
         question.result = { points: question.manualPoints };
       }
       if (!exam.startedAt) exam.startedAt = new Date().toISOString();
@@ -4656,15 +4719,30 @@ function openTrainingExamModal(examId, readOnly = false) {
         mainModule.result = { total: examModuleTotal(mainModule), points: examModulePoints(mainModule), percent: examModulePercent(mainModule) };
       }
       const remainingMain = estMainModules(exam).some((module) => module.status !== "Abgeschlossen");
+      if (exam.kind === "est") {
+        estSideModulesForMain(exam, mainModule).forEach((sideModule) => {
+          sideModule.status = "Abgeschlossen";
+          sideModule.completedAt = sideModule.completedAt || new Date().toISOString();
+          sideModule.result = { total: examModuleTotal(sideModule), points: examModulePoints(sideModule), percent: examModulePercent(sideModule) };
+        });
+      }
       if (!remainingMain && exam.kind === "est") {
         estSideModules(exam).forEach((sideModule) => {
+          if (sideModule.status === "Abgeschlossen") return;
           sideModule.status = "Abgeschlossen";
           sideModule.completedAt = sideModule.completedAt || new Date().toISOString();
           sideModule.result = { total: examModuleTotal(sideModule), points: examModulePoints(sideModule), percent: examModulePercent(sideModule) };
         });
       }
       const completedAll = finalizeExamIfComplete(exam);
-      if (!completedAll) exam.status = "Modul bereit";
+      if (!completedAll) {
+        const next = estMainModules(exam).find((module) => module.status !== "Abgeschlossen");
+        if (next) {
+          exam.activeMainModuleId = next.id;
+          exam.moduleIndex = exam.modules.findIndex((module) => module.id === next.id);
+        }
+        exam.status = "Modul bereit";
+      }
       saveActiveTrainingExam(exam);
       openTrainingExamModal(exam.id);
       renderDepartmentPage(departmentByPage(state.page));
@@ -4679,6 +4757,11 @@ function openTrainingExamModal(examId, readOnly = false) {
         mainModule.status = "Abgeschlossen";
         mainModule.completedAt = new Date().toISOString();
         mainModule.result = { total: examModuleTotal(mainModule), points: examModulePoints(mainModule), percent: examModulePercent(mainModule) };
+        estSideModulesForMain(exam, mainModule).forEach((sideModule) => {
+          sideModule.status = "Abgeschlossen";
+          sideModule.completedAt = sideModule.completedAt || new Date().toISOString();
+          sideModule.result = { total: examModuleTotal(sideModule), points: examModulePoints(sideModule), percent: examModulePercent(sideModule) };
+        });
       }
       const completedAll = finalizeExamIfComplete(exam);
       if (!completedAll) {
@@ -6091,8 +6174,19 @@ function renderPostfach() {
 }
 
 function renderExamModuleStart(exam, candidate) {
-  const modules = exam.kind === "est" ? estMainModules(exam).filter((module) => module.status !== "Abgeschlossen") : exam.modules.filter((module) => module.status !== "Abgeschlossen");
-  const activeId = exam.activeMainModuleId || modules[0]?.id || "";
+  const nextModule = exam.kind === "est" ? estMainModules(exam).find((module) => module.status !== "Abgeschlossen") : exam.modules.find((module) => module.status !== "Abgeschlossen");
+  if (nextModule) {
+    exam.activeMainModuleId = nextModule.id;
+    exam.moduleIndex = exam.modules.findIndex((module) => module.id === nextModule.id);
+  }
+  const flow = exam.kind === "est"
+    ? [
+      ["1", "Rechtskunde + Ortskunde", "Rechtsfragen links, Ortskunde rechts parallel."],
+      ["2", "10-80 Szenario", "Großes Szenariofeld mit Prüferinfos und Akte/Maßnahme."],
+      ["3", "Dienstvorschriften + Fahrstrecke", "Vorschriften links, Fahrstrecke rechts mit Zeitwertung."],
+      ["4", "Helistrecke", "Route und Landedächer mit Bild, Zeit und Bewertung."]
+    ]
+    : [];
   return `
     <section class="exam-runner-card exam-module-start-card compact-start">
       <span>Prüfung vorbereiten</span>
@@ -6100,11 +6194,12 @@ function renderExamModuleStart(exam, candidate) {
       <div class="exam-setup-row">
         <label class="exam-setup-second">2. Prüfer optional<select id="examSetupSecondExaminer"><option value=""></option>${state.users.map((user) => `<option value="${user.id}" ${exam.secondExaminerId === user.id ? "selected" : ""}>${escapeHtml(fullName(user))}</option>`).join("")}</select></label>
       </div>
-      <div class="module-start-choice">
-        <strong>Startmodul auswählen</strong>
-        ${modules.map((module) => `<button type="button" class="ghost-btn ${activeId === module.id ? "selected" : ""}" data-start-module-id="${escapeHtml(module.id)}">${escapeHtml(module.name)}</button>`).join("") || `<p class="muted">Alle Module sind abgeschlossen.</p>`}
+      <input type="hidden" data-start-module-id="${escapeHtml(nextModule?.id || "")}">
+      <div class="est-fixed-flow">
+        <strong>${exam.status === "Vorbereitung" ? "Startet automatisch mit Rechtskunde" : `Nächstes Modul: ${escapeHtml(nextModule?.name || "-")}`}</strong>
+        ${flow.map(([nr, title, text]) => `<span class="${nextModule?.name && title.includes(nextModule.name) ? "active" : ""}"><b>${nr}</b><i>${escapeHtml(title)}</i><small>${escapeHtml(text)}</small></span>`).join("")}
       </div>
-      <p class="muted">Ortskunde, Helistrecke und Fahrstrecke laufen bei EST rechts parallel mit und werden separat bewertet.</p>
+      <p class="muted">Die Reihenfolge ist fest. Das Startfenster wird erst gespeichert, wenn die Prüfung wirklich gestartet wurde.</p>
     </section>
   `;
 }
@@ -6116,15 +6211,24 @@ function renderExamModuleStepper(exam) {
 }
 
 function renderCatalogQuestion(question, index, side = "main") {
-  const maxPoints = 1;
-  const scoreValues = [0, 0.5, 1];
+  const maxPoints = Number(question.maxPoints || 1);
+  const timed = maxPoints > 1 || Number(question.targetSeconds || 0) > 0;
+  const scoreValues = timed ? Array.from({ length: Math.floor(maxPoints) + 1 }, (_, value) => value) : [0, 0.5, 1];
   const scoreClass = (value) => `score-select score-${String(value || 0).replace(".", "-")}`;
   const scorePanel = (html) => `<div class="question-score-row"><span>Bewertung</span>${html}</div>`;
   if (side === "location" || question.type === "location") {
+    const actualPoints = timedQuestionPoints(question);
     return `
       <article class="exam-catalog-question score-left-question location-question" data-question-id="${escapeHtml(question.id)}">
-        ${scorePanel(`<select class="${scoreClass(question.manualPoints)}" data-exam-score="${escapeHtml(question.id)}">${scoreValues.map((value) => `<option value="${value}" ${Number(question.manualPoints || 0) === value ? "selected" : ""}>${String(value).replace(".", ",")}</option>`).join("")}</select>`)}
-        <div class="question-content-box"><div class="catalog-question-head"><b>${index + 1}. ${escapeHtml(question.prompt)}</b><small>Bild / Strecke</small></div>${question.image ? `<img class="location-question-image" src="${escapeHtml(question.image)}" alt="">` : ""}${question.solution ? `<div class="inline-solution">${escapeHtml(question.solution)}</div>` : ""}</div>
+        ${scorePanel(timed
+          ? `<strong class="auto-time-score">${String(actualPoints).replace(".", ",")} / ${escapeHtml(maxPoints)}</strong><input type="hidden" data-exam-score="${escapeHtml(question.id)}" value="${escapeHtml(actualPoints)}">`
+          : `<select class="${scoreClass(question.manualPoints)}" data-exam-score="${escapeHtml(question.id)}">${scoreValues.map((value) => `<option value="${value}" ${Number(question.manualPoints || 0) === value ? "selected" : ""}>${String(value).replace(".", ",")}</option>`).join("")}</select>`)}
+        <div class="question-content-box">
+          <div class="catalog-question-head"><b>${index + 1}. ${escapeHtml(question.prompt)}</b><small>${timed ? "Zeitwertung" : "Bild / Strecke"}</small></div>
+          ${question.image ? `<img class="location-question-image" src="${escapeHtml(question.image)}" alt="">` : ""}
+          ${timed ? `<div class="time-score-row"><label>Sollzeit<input data-autosave-exam data-exam-target="${escapeHtml(question.id)}" value="${escapeHtml(formatSecondsInput(question.targetSeconds || 0))}" placeholder="MM:SS"></label><label>Gefahrene Zeit<input data-autosave-exam data-exam-time="${escapeHtml(question.id)}" value="${escapeHtml(formatSecondsInput(question.timeSeconds || 0))}" placeholder="MM:SS"></label></div>` : ""}
+          ${question.solution ? `<div class="inline-solution">${escapeHtml(question.solution)}</div>` : ""}
+        </div>
       </article>
     `;
   }
