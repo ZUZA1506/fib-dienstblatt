@@ -2412,10 +2412,10 @@ function renderDepartmentPage(department) {
         </div>
         ${canInfo ? `<button class="blue-btn vote-btn">${iconSvg("Abteilungen")} Abstimmung</button>` : ""}
       </div>
-      <div class="grid-3 internal-stats">
+      ${tab !== "estExam" ? `<div class="grid-3 internal-stats">
         <div class="stat-card internal-stat-card"><span>Mitglieder</span><i>${iconSvg("Mitglieder")}</i><strong>${department.members.length}</strong><small>Aktive Mitarbeiter</small></div>
         <div class="stat-card internal-stat-card"><span>Leitung / Stv. Leitung</span><i>${iconSvg("Direktion")}</i><strong>${escapeHtml(leaderText === "-" ? "-" : leaders.length)}</strong><small>${escapeHtml(leaderText)}</small></div>
-      </div>
+      </div>` : ""}
       ${tab === "overview" ? renderDepartmentOverviewPanels(department, canMembers, canNotes) : ""}
       ${tab === "leadership" && canLeadership ? renderDepartmentLeadershipPanel(department) : ""}
       ${tab === "estExam" && isTrainingDepartment ? renderEstExamPanel(department) : ""}
@@ -4220,33 +4220,17 @@ function secondsFromTimeInput(value) {
 }
 
 function renderEstExamPanel(department) {
-  const store = trainingStore();
   const candidates = state.users.filter((user) => !user.trainings?.EST);
-  const flow = [
-    ["1", "Rechtskunde + Ortskunde", "Theoriefragen und Orte parallel bewerten."],
-    ["2", "10-80 Szenario", "Großes Szenario mit Prüferinfos und Akte/Maßnahme."],
-    ["3", "Dienstvorschriften + Fahrstrecke", "Regeln abfragen und Strecke mit Zeitwertung erfassen."],
-    ["4", "Helistrecke", "Route, Bilder und Dachlandungen bewerten."]
-  ];
   return `
     <div class="training-exam-layout department-overview-content est-dashboard">
-      <section class="panel est-overview-panel">
-        <div class="panel-header">
-          <div><h3>EST Ablauf</h3><p class="muted">Feste Reihenfolge, automatische Zwischenspeicherung und klare Modulwertung.</p></div>
-        </div>
-        <div class="est-flow-overview">
-          ${flow.map(([step, title, text]) => `<article><b>${step}</b><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(text)}</small></span></article>`).join("")}
-        </div>
-      </section>
       ${renderActiveTrainingExams("est", department)}
       <section class="panel training-exam-card compact-est-start est-create-panel">
-        <div class="panel-header"><div><h3>Neue EST Prüfung</h3><p class="muted">Die Prüfung erscheint erst bei „Aktive Prüfungen“, sobald sie wirklich gestartet wurde.</p></div></div>
+        <div class="panel-header"><div><h3>EST Prüfung starten</h3><p class="muted">Prüfling auswählen und die Prüfung vorbereiten.</p></div></div>
         <div class="est-create-box">
           <label>Prüfling ohne EST ${renderExamUserPicker("estCandidateInput", "estCandidateList", candidates, "Prüfling suchen und auswählen")}</label>
           <button class="blue-btn" id="startEstExam" type="button">Prüfung vorbereiten</button>
         </div>
       </section>
-      ${renderCompletedTrainingExams(department)}
       ${renderTrainingExamArchive("est", department)}
     </div>
   `;
