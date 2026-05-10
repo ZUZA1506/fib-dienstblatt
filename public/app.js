@@ -528,14 +528,17 @@ function successMessage(path, method) {
 }
 
 function showNotify(message, type = "success") {
+  if (type === "success" && /(gelöscht|löschen|entfernt|entfernen|abgelehnt|fehlgeschlagen|fehler)/i.test(cleanText(message))) {
+    type = /(fehlgeschlagen|fehler)/i.test(cleanText(message)) ? "error" : "danger";
+  }
   const duration = Math.min(5000, Math.max(3000, 2200 + String(message).length * 35));
   const item = document.createElement("div");
   item.className = `notify ${type}`;
   item.style.setProperty("--notify-duration", `${duration}ms`);
   item.innerHTML = `
-    <div class="notify-icon">${type === "success" ? "✓" : "!"}</div>
+    <div class="notify-icon">${type === "success" ? "✓" : type === "danger" ? "×" : "!"}</div>
     <div class="notify-copy">
-      <strong>${type === "success" ? "Erfolg" : "Fehler"}</strong>
+      <strong>${type === "success" ? "Erfolg" : type === "danger" ? "Gelöscht" : "Fehler"}</strong>
       <span>${escapeHtml(message)}</span>
     </div>
     <div class="notify-progress"></div>
@@ -2469,13 +2472,13 @@ function renderDepartmentPage(department) {
   });
   document.querySelectorAll(".training-question-add").forEach((button) => button.addEventListener("click", () => openTrainingQuestionModal(button.dataset.bank, button.dataset.moduleId)));
   document.querySelectorAll(".training-question-edit").forEach((button) => button.addEventListener("click", () => openTrainingQuestionModal(button.dataset.bank, button.dataset.moduleId, button.dataset.questionId)));
-  document.querySelectorAll(".training-question-delete").forEach((button) => button.addEventListener("click", () => deleteTrainingQuestion(button.dataset.bank, button.dataset.moduleId, button.dataset.questionId, department)));
+  document.querySelectorAll(".training-question-delete").forEach((button) => button.addEventListener("click", () => openDeleteTrainingQuestionModal(button.dataset.bank, button.dataset.moduleId, button.dataset.questionId, department)));
   document.querySelectorAll(".training-module-add").forEach((button) => button.addEventListener("click", () => openTrainingModuleModal()));
   document.querySelectorAll(".training-module-edit").forEach((button) => button.addEventListener("click", () => openTrainingModuleModal(button.dataset.moduleId)));
-  document.querySelectorAll(".training-module-delete").forEach((button) => button.addEventListener("click", () => deleteTrainingModule(button.dataset.moduleId, department)));
+  document.querySelectorAll(".training-module-delete").forEach((button) => button.addEventListener("click", () => openDeleteTrainingModuleModal(button.dataset.moduleId, department)));
   document.querySelectorAll(".training-exam-open").forEach((button) => button.addEventListener("click", () => openTrainingExamModal(button.dataset.examId, button.dataset.readonly === "true")));
   document.querySelectorAll(".training-exam-archive").forEach((button) => button.addEventListener("click", () => archiveTrainingExam(button.dataset.examId, department)));
-  document.querySelectorAll(".training-exam-delete").forEach((button) => button.addEventListener("click", () => deleteTrainingExam(button.dataset.examId, department)));
+  document.querySelectorAll(".training-exam-delete").forEach((button) => button.addEventListener("click", () => openDeleteTrainingExamModal(button.dataset.examId, department)));
   document.querySelectorAll(".training-exam-pause").forEach((button) => button.addEventListener("click", () => pauseTrainingExam(button.dataset.examId, department)));
   document.querySelectorAll(".training-exam-stop").forEach((button) => button.addEventListener("click", () => archiveTrainingExam(button.dataset.examId, department)));
   setupExamUserPickers(document);
@@ -3171,31 +3174,32 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
   const module = findTrainingModule(store, bank, moduleId);
   const question = module?.questions.find((item) => item.id === questionId);
   if (!module) return;
-  const imageEnabled = /ortskunde|helistrecke|fahrstrecke/i.test(cleanText(module.name || "")) || question?.type === "location";
+  const moduleName = cleanText(module.name || "");
+  const imageEnabled = /ortskunde|helistrecke|fahrstrecke/i.test(moduleName) || question?.type === "location";
+  const scenarioEnabled = /szenario/i.test(moduleName) || question?.type === "scenario";
+  const defaultType = imageEnabled ? "location" : scenarioEnabled ? "scenario" : question?.type === "choice" ? "choice" : "manual";
+  const typeLabel = imageEnabled ? "Ort / Strecke mit Bild" : scenarioEnabled ? "Szenario" : defaultType === "choice" ? "Antworten als Checkliste" : "Musterlösung / manuelle Bewertung";
   openModal(`
     <h3>${question ? "Frage bearbeiten" : "Frage erstellen"}</h3>
     <p class="muted">${escapeHtml(module.name)}</p>
-    <form id="trainingQuestionForm" class="form-grid">
+    <form id="trainingQuestionForm" class="form-grid training-question-form">
       <label class="full">${imageEnabled ? "Titel / Name" : "Frage"}<textarea name="prompt" required>${escapeHtml(question?.prompt || "")}</textarea></label>
-      <label>Fragentyp
-        <select name="type" id="trainingQuestionType">
-          <option value="manual" ${!["choice", "location", "scenario"].includes(question?.type || "") ? "selected" : ""}>Musterlösung / manuelle Bewertung</option>
-          <option value="choice" ${question?.type === "choice" ? "selected" : ""}>Antworten als Checkliste</option>
-          <option value="location" ${question?.type === "location" || imageEnabled ? "selected" : ""}>Ort / Strecke mit Bild</option>
-          <option value="scenario" ${question?.type === "scenario" ? "selected" : ""}>Szenario</option>
-        </select>
-      </label>
+      <input type="hidden" name="type" id="trainingQuestionType" value="${escapeHtml(defaultType)}">
+      <div class="question-type-display"><span>Fragentyp</span><strong>${escapeHtml(typeLabel)}</strong></div>
       <label>Max. Punkte<input name="maxPoints" type="number" min="0.5" max="10" step="0.5" value="${escapeHtml(Math.min(10, Number(question?.maxPoints || (imageEnabled ? 10 : 1))))}"></label>
-      <label class="full manual-question-fields scenario-question-fields">Musterlösung / Prüferinfo<textarea name="solution" placeholder="Wird dem Prüfer während der Prüfung angezeigt.">${escapeHtml(question?.solution || "")}</textarea></label>
-      <label class="full choice-question-fields">Antworten / Bewertungspunkte<textarea name="answers" placeholder="Eine Antwort oder einen Bewertungspunkt pro Zeile">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea></label>
-      <label class="full scenario-question-fields">Szenario Ablauf / Prüferinfos<textarea name="scenarioInfo" placeholder="Was soll im Szenario passieren?">${escapeHtml(question?.scenarioInfo || "")}</textarea></label>
-      <label class="full scenario-question-fields">Akte / Maßnahme<textarea name="fileAction" placeholder="Welche Akte, Maßnahme oder Sanktion soll vergeben werden?">${escapeHtml(question?.fileAction || "")}</textarea></label>
-      <label class="image-question-fields ${imageEnabled || question?.image ? "" : "hidden"}">Sollzeit<input name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}" placeholder="MM:SS oder Sekunden"></label>
-      <div class="full image-question-fields ${imageEnabled || question?.image ? "" : "hidden"}">
-        <label>Bild hochladen<input id="trainingQuestionImage" type="file" accept="image/*"></label>
+      ${!imageEnabled ? `<label class="full manual-question-fields scenario-question-fields">Musterlösung / Prüferinfo<textarea name="solution" placeholder="Wird dem Prüfer während der Prüfung angezeigt.">${escapeHtml(question?.solution || "")}</textarea></label>` : `<input type="hidden" name="solution" value="${escapeHtml(question?.solution || "")}">`}
+      ${!imageEnabled && !scenarioEnabled ? `<label class="full choice-question-fields">Antworten / Bewertungspunkte<textarea name="answers" placeholder="Eine Antwort oder einen Bewertungspunkt pro Zeile">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea></label>` : `<textarea name="answers" class="hidden">${escapeHtml((question?.answers || question?.correctAnswers || []).join("\n"))}</textarea>`}
+      ${scenarioEnabled ? `<label class="full scenario-question-fields scenario-big-field">Szenario Ablauf / Prüferinfos<textarea name="scenarioInfo" placeholder="Beschreibe das Szenario ausführlich: Lage, Ablauf, erwartetes Verhalten, Hinweise für Prüfer...">${escapeHtml(question?.scenarioInfo || "")}</textarea></label><label class="full scenario-question-fields">Akte / Maßnahme<textarea name="fileAction" placeholder="Welche Akte, Maßnahme oder Sanktion soll vergeben werden?">${escapeHtml(question?.fileAction || "")}</textarea></label>` : `<textarea name="scenarioInfo" class="hidden">${escapeHtml(question?.scenarioInfo || "")}</textarea><textarea name="fileAction" class="hidden">${escapeHtml(question?.fileAction || "")}</textarea>`}
+      ${imageEnabled ? `<label class="image-question-fields">Sollzeit<input name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}" placeholder="MM:SS oder Sekunden"></label>` : `<input type="hidden" name="targetSeconds" value="${escapeHtml(formatSecondsInput(question?.targetSeconds || 0))}">`}
+      ${imageEnabled ? `<div class="full image-upload-card">
+        <div>
+          <strong>Bild für diese Station</strong>
+          <small>Quadratisch oder rechteckig, wird in der Prüfung direkt angezeigt.</small>
+        </div>
+        <label class="image-upload-drop"><input id="trainingQuestionImage" type="file" accept="image/*"><span>Bild auswählen</span><small>PNG, JPG oder WebP</small></label>
         <input name="image" type="hidden" value="${escapeHtml(question?.image || "")}">
         <div class="question-image-preview">${question?.image ? `<img src="${escapeHtml(question.image)}" alt="">` : `<span class="muted">Noch kein Bild hinterlegt.</span>`}</div>
-      </div>
+      </div>` : `<input name="image" type="hidden" value="${escapeHtml(question?.image || "")}">`}
       <p id="modalError" class="form-error full"></p>
       <div class="modal-actions full">
         <button class="ghost-btn" type="button" data-close>Abbrechen</button>
@@ -3203,16 +3207,6 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
       </div>
     </form>
   `, (modal) => {
-    const syncType = () => {
-      const isChoice = modal.querySelector("#trainingQuestionType").value === "choice";
-      const isLocation = modal.querySelector("#trainingQuestionType").value === "location";
-      const isScenario = modal.querySelector("#trainingQuestionType").value === "scenario";
-      modal.querySelectorAll(".choice-question-fields").forEach((item) => item.classList.toggle("hidden", !isChoice));
-      modal.querySelectorAll(".manual-question-fields").forEach((item) => item.classList.toggle("hidden", isLocation));
-      modal.querySelectorAll(".image-question-fields").forEach((item) => item.classList.toggle("hidden", !isLocation && !imageEnabled));
-      modal.querySelectorAll(".scenario-question-fields").forEach((item) => item.classList.toggle("hidden", !isScenario));
-    };
-    modal.querySelector("#trainingQuestionType").addEventListener("change", syncType);
     modal.querySelector("#trainingQuestionImage")?.addEventListener("change", async (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -3220,7 +3214,6 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
       modal.querySelector("[name='image']").value = dataUrl;
       modal.querySelector(".question-image-preview").innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="">`;
     });
-    syncType();
     modal.querySelector("#trainingQuestionForm").addEventListener("submit", (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
@@ -3259,6 +3252,19 @@ function deleteTrainingQuestion(bank, moduleId, questionId, department) {
   module.questions = module.questions.filter((question) => question.id !== questionId);
   saveTrainingStore(store);
   renderDepartmentPage(department);
+  showNotify("Frage gelöscht.", "danger");
+}
+
+function openDeleteTrainingQuestionModal(bank, moduleId, questionId, department) {
+  const store = trainingStore();
+  const module = findTrainingModule(store, bank, moduleId);
+  const question = module?.questions.find((item) => item.id === questionId);
+  openConfirmModal({
+    title: "Frage löschen",
+    text: `${question?.prompt || "Diese Frage"} wirklich dauerhaft löschen?`,
+    confirmText: "Frage löschen",
+    onConfirm: () => deleteTrainingQuestion(bank, moduleId, questionId, department)
+  });
 }
 
 function readImageFileAsDataUrl(file) {
@@ -3315,6 +3321,18 @@ function deleteTrainingModule(moduleId, department) {
   store.moduleModules = store.moduleModules.filter((module) => module.id !== moduleId);
   saveTrainingStore(store);
   renderDepartmentPage(department);
+  showNotify("Modul gelöscht.", "danger");
+}
+
+function openDeleteTrainingModuleModal(moduleId, department) {
+  const store = trainingStore();
+  const module = store.moduleModules.find((item) => item.id === moduleId);
+  openConfirmModal({
+    title: "Modul löschen",
+    text: `${module?.name || "Dieses Modul"} wirklich dauerhaft löschen?`,
+    confirmText: "Modul löschen",
+    onConfirm: () => deleteTrainingModule(moduleId, department)
+  });
 }
 
 function archiveTrainingExam(examId, department) {
@@ -3325,6 +3343,7 @@ function archiveTrainingExam(examId, department) {
   exam.archivedAt = new Date().toISOString();
   saveTrainingStore(store);
   renderDepartmentPage(department);
+  showNotify("Prüfung archiviert.", "success");
 }
 
 function pauseTrainingExam(examId, department) {
@@ -3341,6 +3360,19 @@ function deleteTrainingExam(examId, department) {
   store.activeExams = store.activeExams.filter((exam) => exam.id !== examId);
   saveTrainingStore(store);
   renderDepartmentPage(department);
+  showNotify("Prüfung gelöscht.", "danger");
+}
+
+function openDeleteTrainingExamModal(examId, department) {
+  const store = trainingStore();
+  const exam = store.activeExams.find((item) => item.id === examId);
+  const candidate = state.users.find((user) => user.id === exam?.candidateId);
+  openConfirmModal({
+    title: "Prüfung löschen",
+    text: `${candidate ? fullName(candidate) : "Diese Prüfung"} wirklich dauerhaft löschen?`,
+    confirmText: "Prüfung löschen",
+    onConfirm: () => deleteTrainingExam(examId, department)
+  });
 }
 
 function examProgressText(exam) {
@@ -4190,14 +4222,28 @@ function secondsFromTimeInput(value) {
 function renderEstExamPanel(department) {
   const store = trainingStore();
   const candidates = state.users.filter((user) => !user.trainings?.EST);
+  const flow = [
+    ["1", "Rechtskunde + Ortskunde", "Theoriefragen und Orte parallel bewerten."],
+    ["2", "10-80 Szenario", "Großes Szenario mit Prüferinfos und Akte/Maßnahme."],
+    ["3", "Dienstvorschriften + Fahrstrecke", "Regeln abfragen und Strecke mit Zeitwertung erfassen."],
+    ["4", "Helistrecke", "Route, Bilder und Dachlandungen bewerten."]
+  ];
   return `
-    <div class="training-exam-layout department-overview-content">
+    <div class="training-exam-layout department-overview-content est-dashboard">
+      <section class="panel est-overview-panel">
+        <div class="panel-header">
+          <div><h3>EST Ablauf</h3><p class="muted">Feste Reihenfolge, automatische Zwischenspeicherung und klare Modulwertung.</p></div>
+        </div>
+        <div class="est-flow-overview">
+          ${flow.map(([step, title, text]) => `<article><b>${step}</b><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(text)}</small></span></article>`).join("")}
+        </div>
+      </section>
       ${renderActiveTrainingExams("est", department)}
-      <section class="panel training-exam-card compact-est-start">
-        <div class="panel-header"><div><h3>EST Prüfung erstellen</h3><p class="muted">Prüfling auswählen und Prüfung vorbereiten. Aktiv wird sie erst nach „Prüfung starten“.</p></div></div>
-        <div class="exam-start-grid compact">
+      <section class="panel training-exam-card compact-est-start est-create-panel">
+        <div class="panel-header"><div><h3>Neue EST Prüfung</h3><p class="muted">Die Prüfung erscheint erst bei „Aktive Prüfungen“, sobald sie wirklich gestartet wurde.</p></div></div>
+        <div class="est-create-box">
           <label>Prüfling ohne EST ${renderExamUserPicker("estCandidateInput", "estCandidateList", candidates, "Prüfling suchen und auswählen")}</label>
-          <button class="blue-btn" id="startEstExam" type="button">EST Prüfung anlegen</button>
+          <button class="blue-btn" id="startEstExam" type="button">Prüfung vorbereiten</button>
         </div>
       </section>
       ${renderCompletedTrainingExams(department)}
@@ -4229,7 +4275,7 @@ function renderActiveTrainingExams(kind, department) {
   const canManage = departmentActionAllowed(department, "departmentLeadership");
   return `
     <section class="panel training-active-card">
-      <div class="panel-header"><div><h3>Aktive Prüfungen</h3><p class="muted">${activeRows.length} begonnene oder vorbereitete Prüfungen</p></div></div>
+      <div class="panel-header"><div><h3>Aktive Prüfungen</h3><p class="muted">${activeRows.length} gestartete oder pausierte Prüfungen</p></div></div>
       <div class="training-active-grid">
         ${activeRows.length ? activeRows.map((exam) => renderActiveTrainingExamRow(exam, canManage)).join("") : `<p class="muted">Keine aktive Prüfung vorhanden.</p>`}
       </div>
@@ -4674,6 +4720,9 @@ function openTrainingExamModal(examId, readOnly = false) {
       exam.moduleIndex = exam.modules.findIndex((item) => item.id === selected);
       exam.status = "Laufend";
       exam.startedAt = exam.startedAt || new Date().toISOString();
+      exam.modules.forEach((item) => {
+        if (item.id !== selected && item.status !== "Abgeschlossen") item.status = "Offen";
+      });
       if (module) {
         module.status = "Laufend";
         module.startedAt = module.startedAt || new Date().toISOString();
@@ -4740,11 +4789,14 @@ function openTrainingExamModal(examId, readOnly = false) {
         if (next) {
           exam.activeMainModuleId = next.id;
           exam.moduleIndex = exam.modules.findIndex((module) => module.id === next.id);
+          exam.modules.forEach((module) => {
+            if (module.status !== "Abgeschlossen") module.status = module.id === next.id ? "Offen" : "Offen";
+          });
         }
         exam.status = "Modul bereit";
       }
       saveActiveTrainingExam(exam);
-      openTrainingExamModal(exam.id);
+      closeModal();
       renderDepartmentPage(departmentByPage(state.page));
       showNotify(completedAll ? "EST Prüfung vollständig abgeschlossen." : "Modul abgeschlossen.", "success");
     });
@@ -7148,6 +7200,27 @@ function openModal(html, onReady) {
   document.addEventListener("keydown", handleModalEscape);
   modalRoot.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeModal));
   onReady?.(modalRoot.querySelector(".modal"));
+}
+
+function openConfirmModal({ title = "Löschen bestätigen", text = "Diesen Eintrag wirklich löschen?", confirmText = "Löschen", onConfirm }) {
+  openModal(`
+    <h3>${escapeHtml(title)}</h3>
+    <p class="muted">${escapeHtml(text)}</p>
+    <p id="modalError" class="form-error"></p>
+    <div class="modal-actions">
+      <button class="ghost-btn" data-close>Abbrechen</button>
+      <button class="red-btn" id="confirmGenericDelete">${escapeHtml(confirmText)}</button>
+    </div>
+  `, (modal) => {
+    modal.querySelector("#confirmGenericDelete").addEventListener("click", async () => {
+      try {
+        await onConfirm?.();
+        closeModal();
+      } catch (error) {
+        modal.querySelector("#modalError").textContent = error.message;
+      }
+    });
+  });
 }
 
 function closeModal() {

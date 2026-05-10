@@ -129,6 +129,11 @@ button {
   border-color: rgba(225, 43, 53, .6);
 }
 
+.notify.danger {
+  border-color: rgba(225, 43, 53, .72);
+  background: linear-gradient(135deg, rgba(225, 43, 53, .13), rgba(18, 29, 47, .96));
+}
+
 .notify-icon {
   width: 32px;
   height: 32px;
@@ -146,6 +151,11 @@ button {
 .notify.error .notify-icon {
   color: #ff7279;
   background: rgba(225, 43, 53, .18);
+}
+
+.notify.danger .notify-icon {
+  color: #ff7279;
+  background: rgba(225, 43, 53, .22);
 }
 
 .notify-copy {
@@ -179,6 +189,10 @@ button {
 }
 
 .notify.error .notify-progress {
+  background: #e12b35;
+}
+
+.notify.danger .notify-progress {
   background: #e12b35;
 }
 
@@ -1000,6 +1014,68 @@ textarea:focus {
   gap: 14px;
 }
 
+.est-dashboard {
+  gap: 16px;
+}
+
+.est-overview-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.est-flow-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.est-flow-overview article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #30445f;
+  border-radius: 8px;
+  background: #142033;
+}
+
+.est-flow-overview b {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #9fd0ff;
+  background: rgba(47, 109, 246, .18);
+}
+
+.est-flow-overview span {
+  display: grid;
+  gap: 4px;
+}
+
+.est-flow-overview small {
+  color: #9fb4d0;
+  line-height: 1.35;
+}
+
+.est-create-panel {
+  gap: 10px;
+}
+
+.est-create-box {
+  display: grid;
+  grid-template-columns: minmax(260px, 420px) auto;
+  justify-content: start;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #30445f;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(20, 32, 51, .98), rgba(12, 22, 38, .98));
+}
+
 .training-exam-card,
 .training-manage-card {
   display: grid;
@@ -1255,6 +1331,77 @@ textarea:focus {
 
 .training-question-admin-row b {
   white-space: normal;
+}
+
+.training-question-form .question-type-display {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid #30445f;
+  border-radius: 8px;
+  background: rgba(47, 109, 246, .08);
+}
+
+.training-question-form .question-type-display span {
+  color: #8eb8e8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.training-question-form .question-type-display strong {
+  color: #f5f8ff;
+}
+
+.image-upload-card {
+  display: grid;
+  grid-template-columns: minmax(180px, .75fr) minmax(180px, .8fr) minmax(220px, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid #30445f;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .03);
+}
+
+.image-upload-card > div:first-child {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+.image-upload-card strong {
+  color: #f5f8ff;
+}
+
+.image-upload-card small {
+  color: #9fb4d0;
+}
+
+.image-upload-drop {
+  position: relative;
+  display: grid !important;
+  place-items: center;
+  min-height: 112px;
+  border: 1px dashed #4f6f99;
+  border-radius: 8px;
+  background: rgba(47, 109, 246, .08);
+  cursor: pointer;
+}
+
+.image-upload-drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.image-upload-drop span {
+  color: #9fd0ff;
+  font-weight: 900;
+}
+
+.scenario-big-field textarea {
+  min-height: 180px;
 }
 
 .modal.exam-modal {
