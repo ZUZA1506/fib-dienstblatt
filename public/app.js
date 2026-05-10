@@ -2555,7 +2555,8 @@ function makeTrainingId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function defaultTrainingQuestion(prompt, type = "manual", maxPoints = 1) {
+function defaultTrainingQuestion(prompt, type = "manual", maxPoints = null) {
+  const resolvedMaxPoints = maxPoints ?? (type === "location" ? 1 : type === "scenario" ? 10 : 3);
   return {
     id: makeTrainingId("question"),
     prompt,
@@ -2570,17 +2571,17 @@ function defaultTrainingQuestion(prompt, type = "manual", maxPoints = 1) {
     stationType: "",
     targetSeconds: 0,
     timeSeconds: 0,
-    maxPoints
+    maxPoints: resolvedMaxPoints
   };
 }
 
 function defaultTrainingStore() {
   return {
     estModules: [
-      { id: "est-law", name: "Rechtskunde", description: "Rechtsfragen und Grundlagen", phase: 1, questions: [defaultTrainingQuestion("Wann darf eine Person durchsucht werden?"), defaultTrainingQuestion("Welche Rechte gelten bei einer Festnahme?", "choice")] },
+      { id: "est-law", name: "Rechtskunde", description: "Rechtsfragen und Grundlagen", phase: 1, questions: [defaultTrainingQuestion("Wann darf eine Person durchsucht werden?", "manual", 3), defaultTrainingQuestion("Welche Rechte gelten bei einer Festnahme?", "manual", 3)] },
       { id: "est-location", name: "Ortskunde", description: "Orte, Wege und Zuständigkeiten", questions: EST_LOCATION_PROMPTS.map((place) => defaultTrainingQuestion(place, "location")) },
-      { id: "est-scenario", name: "Szenario", description: "10-80 / praktisches Szenario mit Akten-/Prüferinfos", phase: 2, questions: [defaultTrainingQuestion("10-80 Szenario", "scenario")] },
-      { id: "est-rules", name: "Dienstvorschriften", description: "Interne Regeln und Vorgehen", phase: 3, questions: [defaultTrainingQuestion("Wie wird ein Einsatzbericht dokumentiert?")] },
+      { id: "est-scenario", name: "Szenario", description: "10-80 / praktisches Szenario mit Akten-/Prüferinfos", phase: 2, questions: [defaultTrainingQuestion("10-80 Szenario", "scenario", 10)] },
+      { id: "est-rules", name: "Dienstvorschriften", description: "Interne Regeln und Vorgehen", phase: 3, questions: [defaultTrainingQuestion("Wie wird ein Einsatzbericht dokumentiert?", "manual", 3)] },
       { id: "est-drive", name: "Fahrstrecke", description: "Fahrroute mit Bild und automatischer Zeitwertung", questions: [defaultTrainingQuestion("Fahrstrecke 1", "location", 10)] },
       { id: "est-heli", name: "Helistrecke", description: "Helikopterroute und Landedächer mit Bild und Zeitwertung", phase: 4, questions: [defaultTrainingQuestion("Helistrecke Route", "location", 10), defaultTrainingQuestion("Dachlandung 1", "location", 10)] }
     ],
@@ -2588,7 +2589,7 @@ function defaultTrainingStore() {
       id: `module-${training.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       name: training,
       description: "Modulprüfung vorbereiten",
-      questions: [defaultTrainingQuestion(`${training}: Prüffrage eintragen.`)]
+      questions: [defaultTrainingQuestion(`${training}: Prüffrage eintragen.`, "manual", 3)]
     })),
     activeExams: []
   };
@@ -2608,6 +2609,12 @@ function trainingStore() {
 
 function normalizeTrainingStore(store) {
   const defaults = defaultTrainingStore();
+  const normalizedQuestionMaxPoints = (module, question) => {
+    if (module.id === "est-location") return 1;
+    if (["est-drive", "est-heli"].includes(module.id)) return Math.min(10, Math.max(1, Number(question.maxPoints || 10)));
+    if (question.type === "scenario" || module.id === "est-scenario") return Math.min(10, Math.max(5, Number(question.maxPoints || 10)));
+    return Math.min(10, Math.max(3, Number(question.maxPoints || 3)));
+  };
   const mergeModules = (current, fallback) => {
     const modules = [...(current || [])];
     fallback.forEach((module) => {
@@ -2626,7 +2633,7 @@ function normalizeTrainingStore(store) {
         stationType: question.stationType || (module.id === "est-heli" && /dach|landung|combat/i.test(question.prompt || "") ? "combat" : module.id === "est-heli" ? "route" : ""),
         targetSeconds: Number(question.targetSeconds || 0),
         timeSeconds: Number(question.timeSeconds || 0),
-        maxPoints: module.id === "est-location" ? 1 : ["est-drive", "est-heli"].includes(module.id) ? Math.min(10, Math.max(1, Number(question.maxPoints || 10))) : Math.min(10, Math.max(0.5, Number(question.maxPoints || 1))),
+        maxPoints: normalizedQuestionMaxPoints(module, question),
         penaltyPoints: 0,
         questionPenalty: false
       }))
@@ -3187,7 +3194,7 @@ function openTrainingQuestionModal(bank, moduleId, questionId = null) {
   const stationType = question?.stationType || (isHelistrecke && /dach|landung|combat/i.test(question?.prompt || "") ? "combat" : "route");
   const typeLabel = isOrtskunde ? "Ortskunde · Ort mit Bild · max. 1 Punkt" : isFahrstrecke ? "Fahrstrecke · Strecke mit Sollzeit" : isHelistrecke ? "Helistrecke · Route oder Combat-Landung" : scenarioEnabled ? "Szenario" : "Frage mit Musterlösung";
   const promptLabel = isOrtskunde ? "Ort" : isFahrstrecke ? "Strecke" : isHelistrecke ? "Strecke / Combat-Landung" : "Frage";
-  const maxPointsValue = isOrtskunde ? 1 : Math.min(10, Number(question?.maxPoints || (isTimedRoute ? 10 : 1)));
+  const maxPointsValue = isOrtskunde ? 1 : Math.min(10, Number(question?.maxPoints || (isTimedRoute || scenarioEnabled ? 10 : 3)));
   openModal(`
     <h3>${question ? "Frage bearbeiten" : "Frage erstellen"}</h3>
     <p class="muted">${escapeHtml(module.name)}</p>
@@ -4147,7 +4154,10 @@ function ensureExamModuleState(exam) {
       question.skipped = Boolean(question.skipped);
       question.traineeAnswer = question.traineeAnswer || "";
       question.manualPoints = Number(question.manualPoints ?? question.result?.points ?? 0);
-      question.maxPoints = Math.min(10, Math.max(0.5, Number(question.maxPoints || 1)));
+      if (module.id === "est-location") question.maxPoints = 1;
+      else if (["est-drive", "est-heli"].includes(module.id)) question.maxPoints = Math.min(10, Math.max(1, Number(question.maxPoints || 10)));
+      else if (question.type === "scenario" || module.id === "est-scenario") question.maxPoints = Math.min(10, Math.max(5, Number(question.maxPoints || 10)));
+      else question.maxPoints = Math.min(10, Math.max(3, Number(question.maxPoints || 3)));
     });
   });
   if (exam.kind === "est" && !exam.activeMainModuleId) {
@@ -4220,7 +4230,17 @@ function normalizeChoiceAnswers(question) {
 
 function scoreChoiceQuestion(question) {
   if (question.skipped) return 0;
-  return Math.max(0, Math.min(1, Number(question.manualPoints || 0)));
+  return Math.max(0, Math.min(Number(question.maxPoints || 1), Number(question.manualPoints || 0)));
+}
+
+function scoreOptionsForQuestion(question, locationSide = false) {
+  const maxPoints = Number(question.maxPoints || 1);
+  const step = locationSide && maxPoints <= 1 ? 0.5 : 0.5;
+  const values = [];
+  for (let value = 0; value <= maxPoints + 0.001; value += step) {
+    values.push(Math.round(value * 10) / 10);
+  }
+  return values;
 }
 
 function timedQuestionPoints(question) {
@@ -6327,7 +6347,7 @@ function renderExamModuleStepper(exam) {
 function renderCatalogQuestion(question, index, side = "main") {
   const maxPoints = Number(question.maxPoints || 1);
   const timed = maxPoints > 1 || Number(question.targetSeconds || 0) > 0;
-  const scoreValues = timed ? Array.from({ length: Math.floor(maxPoints) + 1 }, (_, value) => value) : [0, 0.5, 1];
+  const scoreValues = timed ? Array.from({ length: Math.floor(maxPoints) + 1 }, (_, value) => value) : scoreOptionsForQuestion(question, side === "location" || question.type === "location");
   const scoreClass = (value) => `score-select score-${String(value || 0).replace(".", "-")}`;
   const scorePanel = (html) => `<div class="question-score-row"><span>Bewertung</span>${html}</div>`;
   if (side === "location" || question.type === "location") {
