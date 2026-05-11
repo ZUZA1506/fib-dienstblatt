@@ -774,6 +774,25 @@ app.patch("/api/users/:id", requireAuth, requireRole("Direktion"), (req, res) =>
   res.json({ user: publicUser(user) });
 });
 
+app.post("/api/training/est/:id", requireAuth, (req, res) => {
+  const user = req.db.users.find((item) => item.id === req.params.id && !item.terminated);
+  if (!user) return res.status(404).json({ error: "Benutzer nicht gefunden." });
+  const trainingDepartment = getDepartment(req.db, "training-recruitment");
+  if (!canManageDepartmentAction(req.user, trainingDepartment, req.db, "departmentLeadership")) {
+    return res.status(403).json({ error: "Keine Berechtigung." });
+  }
+  if (user.trainings?.EST) return res.json({ user: publicUser(user) });
+  const before = publicUser(user);
+  const beforeTrainings = { ...(user.trainings || {}) };
+  user.trainings = { ...Object.fromEntries(trainingNames.map((training) => [training, false])), ...(user.trainings || {}), EST: true };
+  updateTrainingMeta(user, beforeTrainings, user.trainings, req.user);
+  user.updatedAt = nowIso();
+  const after = publicUser(user);
+  logAction(req.db, req.user, "Ausbildung EST hinzugefügt", `${user.firstName} ${user.lastName}`.trim(), { before, after, description: "EST nach bestandener Prüfung vergeben" });
+  writeDb(req.db);
+  res.json({ user: after });
+});
+
 app.patch("/api/settings/uprank-rules", requireAuth, requireRole("Direktion"), (req, res) => {
   const before = normalizeUprankRules(req.db.settings.uprankRules);
   const incoming = Array.isArray(req.body.rules) ? req.body.rules : [];

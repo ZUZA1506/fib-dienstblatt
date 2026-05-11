@@ -2597,6 +2597,14 @@ tr:last-child td {
   border-bottom: 0;
 }
 
+.training-archive-row.exam-passed {
+  border-color: rgba(22, 185, 106, .5);
+}
+
+.training-archive-row.exam-failed {
+  border-color: rgba(225, 43, 53, .55);
+}
+
 .seizure-page {
   display: grid;
   gap: 12px;

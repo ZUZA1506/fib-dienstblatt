@@ -2481,6 +2481,7 @@ function renderDepartmentPage(department) {
   document.querySelectorAll(".training-exam-delete").forEach((button) => button.addEventListener("click", () => openDeleteTrainingExamModal(button.dataset.examId, department)));
   document.querySelectorAll(".training-exam-pause").forEach((button) => button.addEventListener("click", () => pauseTrainingExam(button.dataset.examId, department)));
   document.querySelectorAll(".training-exam-stop").forEach((button) => button.addEventListener("click", () => archiveTrainingExam(button.dataset.examId, department)));
+  document.querySelectorAll(".training-est-grant").forEach((button) => button.addEventListener("click", () => grantEstTrainingFromArchive(button.dataset.userId, department)));
   setupExamUserPickers(document);
   document.querySelectorAll(".training-archive-search").forEach((input) => input.addEventListener("input", () => {
     const term = input.value.toLowerCase();
@@ -2553,6 +2554,17 @@ const EST_LOCATION_PROMPTS = [
 
 function makeTrainingId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+async function grantEstTrainingFromArchive(userId, department) {
+  try {
+    await api(`/api/training/est/${userId}`, { method: "POST" });
+    await bootstrap();
+    renderDepartmentPage(department);
+    showNotify("EST Haken vergeben.", "success");
+  } catch (error) {
+    showNotify(error.message, "error");
+  }
 }
 
 function defaultTrainingQuestion(prompt, type = "manual", maxPoints = null) {
@@ -2814,9 +2826,12 @@ function renderTrainingExamArchiveRow(exam, canManageArchive) {
   const candidate = state.users.find((user) => user.id === exam.candidateId);
   const examiner = state.users.find((user) => user.id === exam.examinerId);
   const secondExaminer = state.users.find((user) => user.id === exam.secondExaminerId);
-  const result = exam.finalResult ? `${exam.finalResult.percent}% · ${exam.finalResult.points}/${exam.finalResult.total} Punkte` : "Ohne finale Auswertung";
+  const percent = Number(exam.finalResult?.percent || 0);
+  const passed = Boolean(exam.finalResult) && percent >= 70;
+  const alreadyHasEst = Boolean(candidate?.trainings?.EST);
+  const result = exam.finalResult ? `${passed ? "Bestanden" : "Nicht bestanden"} · ${percent}% · ${exam.finalResult.points}/${exam.finalResult.total} Punkte` : "Ohne finale Auswertung";
   return `
-    <article class="training-archive-row">
+    <article class="training-archive-row ${exam.kind === "est" && exam.finalResult ? passed ? "exam-passed" : "exam-failed" : ""}">
       <div>
         <strong>${escapeHtml(candidate ? fullName(candidate) : "Unbekannter Prüfling")}</strong>
         <small>${exam.kind === "est" ? "EST Prüfung" : "Modul Prüfung"} · ${escapeHtml(exam.status)} · ${formatDateTime(exam.archivedAt || exam.startedAt)}</small>
@@ -2825,6 +2840,8 @@ function renderTrainingExamArchiveRow(exam, canManageArchive) {
       <span><b>Ergebnis</b>${escapeHtml(result)}</span>
       <div class="button-row">
         <button class="blue-btn training-exam-open" data-exam-id="${escapeHtml(exam.id)}" data-readonly="true" type="button">Verlauf öffnen</button>
+        ${exam.kind === "est" && passed && candidate && !alreadyHasEst && canManageArchive ? `<button class="green-btn training-est-grant" data-user-id="${escapeHtml(candidate.id)}" type="button">EST Haken vergeben</button>` : ""}
+        ${exam.kind === "est" && alreadyHasEst ? `<span class="requirement-chip ok">EST vergeben</span>` : ""}
         ${canManageArchive ? `<button class="mini-icon danger training-exam-delete" data-exam-id="${escapeHtml(exam.id)}" type="button" title="Archiv löschen">${actionIcon("delete")}</button>` : ""}
       </div>
     </article>
